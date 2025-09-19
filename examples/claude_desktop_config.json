@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mcp-glpi": {
+      "command": "D:/Desktop/proyectos/mcp-glpi/.venv/Scripts/python.exe",
+      "args": ["-m", "mcp_test.server"],
+      "cwd": "D:/Desktop/proyectos/mcp-glpi",
+      "env": {
+        "PYTHONPATH": "D:/Desktop/proyectos/mcp-glpi/src"
+      }
+    }
+  }
+}
