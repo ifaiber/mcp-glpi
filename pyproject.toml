@@ -28,7 +28,7 @@ dev = [
 ]
 
 [project.scripts]
-mcp-glpi = "mcp_test.server:main"
+mcp_glpi = "mcp_glpi.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
