@@ -14,5 +14,14 @@ tools = [
             },
             "required": ["message"]
         }
+    ),
+    types.Tool(
+        name="glpi_status",
+        description="Muestra el estado de la configuración GLPI",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
     )
 ]

@@ -11,8 +11,8 @@ import click
 from mcp.server.models import InitializationOptions
 import mcp.server.stdio
 import mcp.types as types
-import GLPITools
-import GLPiHandler
+import mcp_glpi.GLPITools as GLPITools
+import mcp_glpi.GLPiHandler as GLPiHandler
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +41,7 @@ class GLPIMCPServer:
         ) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
             """Ejecuta la herramienta especificada."""
 
-            return GLPiHandler.CommandHandler(command=name).execute()
+            return GLPiHandler.CommandHandler(command=name, arguments=arguments).execute()
             
 
     async def run(self):

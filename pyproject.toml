@@ -16,6 +16,8 @@ dependencies = [
     "asyncio-mqtt>=0.13.0",
     "pydantic>=2.0.0",
     "click>=8.0.0",
+    "python-dotenv>=1.0.0",
+    "pydantic-settings>=2.0.0",
 ]
 
 [project.optional-dependencies]

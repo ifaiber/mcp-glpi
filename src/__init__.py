@@ -1,1 +1,0 @@
-"""MCP GLPI Server Package"""
