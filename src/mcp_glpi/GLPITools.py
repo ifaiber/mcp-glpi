@@ -90,6 +90,38 @@ _creation_properties = {
     },
 }
 
+_comment_base_properties = {
+    "content": {
+        "type": "string",
+        "description": "Contenido del comentario o seguimiento",
+    },
+    "is_private": {
+        "type": ["boolean", "string", "integer", "null"],
+        "description": "Marca el comentario como privado",
+    },
+    "additional": {
+        "type": "object",
+        "additionalProperties": True,
+        "description": "Campos adicionales para el seguimiento",
+    },
+}
+
+_solution_base_properties = {
+    "content": {
+        "type": "string",
+        "description": "Descripcion de la solucion",
+    },
+    "solution_type_id": {
+        "type": ["integer", "string", "null"],
+        "description": "Identificador del tipo de solucion (solutiontypes_id)",
+    },
+    "additional": {
+        "type": "object",
+        "additionalProperties": True,
+        "description": "Campos adicionales para la solucion",
+    },
+}
+
 
 def _listing_schema(description: str) -> dict:
     return {
@@ -108,6 +140,100 @@ def _creation_schema(description: str) -> dict:
         "description": description,
     }
     return schema
+
+
+def _comment_schema(item_field: str, item_label: str) -> dict:
+    properties = {
+        item_field: {
+            "type": ["integer", "string"],
+            "description": f"Identificador del {item_label}",
+        }
+    }
+    properties.update(copy.deepcopy(_comment_base_properties))
+    properties.setdefault("is_private", {}).setdefault(
+        "description", "Marca el comentario como privado"
+    )
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": [item_field, "content"],
+    }
+
+
+def _solution_schema(item_field: str, item_label: str) -> dict:
+    properties = {
+        item_field: {
+            "type": ["integer", "string"],
+            "description": f"Identificador del {item_label}",
+        }
+    }
+    properties.update(copy.deepcopy(_solution_base_properties))
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": [item_field, "content"],
+    }
+
+
+def _actor_schema(actor_id_field: str, actor_label: str) -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            actor_id_field: {
+                "type": ["integer", "string"],
+                "description": f"ID del {actor_label}",
+            },
+            "type": {
+                "type": ["integer", "string", "null"],
+                "description": "Tipo de rol (1 solicitante, 2 asignado, 3 observador)",
+            },
+            "use_notification": {
+                "type": ["boolean", "string", "integer", "null"],
+                "description": "Si debe enviar notificaciones",
+            },
+            "is_dynamic": {
+                "type": ["boolean", "string", "integer", "null"],
+                "description": "Marca el actor como dinamico",
+            },
+            "alternative_email": {
+                "type": ["string", "null"],
+                "description": "Correo alternativo para el actor",
+            },
+        },
+        "required": [actor_id_field],
+        "additionalProperties": True,
+    }
+
+
+def _actors_property(actor_schema: dict, label: str) -> dict:
+    return {
+        "description": label,
+        "anyOf": [
+            {"type": "array", "items": actor_schema},
+            actor_schema,
+        ],
+    }
+
+
+def _assignment_schema(
+    item_field: str,
+    item_label: str,
+    actors_key: str,
+    actor_schema: dict,
+    description: str,
+) -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            item_field: {
+                "type": ["integer", "string"],
+                "description": f"Identificador del {item_label}",
+            },
+            actors_key: _actors_property(actor_schema, f"Listado de {actors_key} a asignar"),
+        },
+        "required": [item_field, actors_key],
+        "description": description,
+    }
 
 
 tools = [
@@ -160,6 +286,70 @@ tools = [
         description="Crea un cambio en GLPI usando glpi_client",
         inputSchema=_creation_schema(
             "Parametros para crear un cambio (los campos adicionales van en 'additional')",
+        ),
+    ),
+    types.Tool(
+        name="add_ticket_comment",
+        description="Agrega un comentario (seguimiento) a un ticket",
+        inputSchema=_comment_schema("ticket_id", "ticket"),
+    ),
+    types.Tool(
+        name="add_ticket_solution",
+        description="Registra una solucion para un ticket",
+        inputSchema=_solution_schema("ticket_id", "ticket"),
+    ),
+    types.Tool(
+        name="assign_ticket_users",
+        description="Asigna usuarios a un ticket",
+        inputSchema=_assignment_schema(
+            "ticket_id",
+            "ticket",
+            "users",
+            _actor_schema("users_id", "usuario"),
+            "Parametros para asignar usuarios a un ticket",
+        ),
+    ),
+    types.Tool(
+        name="assign_ticket_groups",
+        description="Asigna grupos a un ticket",
+        inputSchema=_assignment_schema(
+            "ticket_id",
+            "ticket",
+            "groups",
+            _actor_schema("groups_id", "grupo"),
+            "Parametros para asignar grupos a un ticket",
+        ),
+    ),
+    types.Tool(
+        name="add_change_comment",
+        description="Agrega un comentario (seguimiento) a un cambio",
+        inputSchema=_comment_schema("change_id", "cambio"),
+    ),
+    types.Tool(
+        name="add_change_solution",
+        description="Registra una solucion para un cambio",
+        inputSchema=_solution_schema("change_id", "cambio"),
+    ),
+    types.Tool(
+        name="assign_change_users",
+        description="Asigna usuarios a un cambio",
+        inputSchema=_assignment_schema(
+            "change_id",
+            "cambio",
+            "users",
+            _actor_schema("users_id", "usuario"),
+            "Parametros para asignar usuarios a un cambio",
+        ),
+    ),
+    types.Tool(
+        name="assign_change_groups",
+        description="Asigna grupos a un cambio",
+        inputSchema=_assignment_schema(
+            "change_id",
+            "cambio",
+            "groups",
+            _actor_schema("groups_id", "grupo"),
+            "Parametros para asignar grupos a un cambio",
         ),
     ),
 ]

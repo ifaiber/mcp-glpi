@@ -32,6 +32,22 @@ class CommandHandler:
             return self._create_change()
         if self.command == "create_ticket":
             return self._create_ticket()
+        if self.command == "add_change_comment":
+            return self._add_change_comment()
+        if self.command == "add_change_solution":
+            return self._add_change_solution()
+        if self.command == "assign_change_users":
+            return self._assign_change_users()
+        if self.command == "assign_change_groups":
+            return self._assign_change_groups()
+        if self.command == "add_ticket_comment":
+            return self._add_ticket_comment()
+        if self.command == "add_ticket_solution":
+            return self._add_ticket_solution()
+        if self.command == "assign_ticket_users":
+            return self._assign_ticket_users()
+        if self.command == "assign_ticket_groups":
+            return self._assign_ticket_groups()
         return self._text(f"Herramienta desconocida: {self.command}")
 
     def validate_session(self):
@@ -97,7 +113,7 @@ class CommandHandler:
             logger.exception("Error creating change")
             return self._text(f"Error creating change: {exc}")
 
-        return self._wrap_creation_result(result)
+        return self._wrap_result(result)
 
     def _create_ticket(self):
         name = self.arguments.get("name")
@@ -130,9 +146,133 @@ class CommandHandler:
             logger.exception("Error creating ticket")
             return self._text(f"Error creating ticket: {exc}")
 
-        return self._wrap_creation_result(result)
+        return self._wrap_result(result)
 
-    def _wrap_creation_result(self, result: Any):
+    def _add_change_comment(self):
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        is_private = self._get_bool_argument("is_private", False)
+        try:
+            result = glpi.changes.add_followup(
+                change_id=self._get_from_arguments("change_id", "id"),
+                content=self.arguments.get("content"),
+                is_private=is_private,
+                additional_fields=additional,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error adding change comment")
+            return self._text(f"Error adding change comment: {exc}")
+        return self._wrap_result(result)
+
+    def _add_change_solution(self):
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        solution_type_id = self._get_from_arguments("solution_type_id", "solutiontypes_id")
+        try:
+            result = glpi.changes.add_solution(
+                change_id=self._get_from_arguments("change_id", "id"),
+                content=self.arguments.get("content"),
+                solution_type_id=solution_type_id,
+                additional_fields=additional,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error adding change solution")
+            return self._text(f"Error adding change solution: {exc}")
+        return self._wrap_result(result)
+
+    def _assign_change_users(self):
+        users = self._get_collection_argument("users", ("user", "user_id", "users_id"))
+        try:
+            result = glpi.changes.assign_change_users(
+                change_id=self._get_from_arguments("change_id", "id"),
+                users=users,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error assigning change users")
+            return self._text(f"Error assigning change users: {exc}")
+        return self._wrap_result(result)
+
+    def _assign_change_groups(self):
+        groups = self._get_collection_argument("groups", ("group", "group_id", "groups_id"))
+        try:
+            result = glpi.changes.assign_change_groups(
+                change_id=self._get_from_arguments("change_id", "id"),
+                groups=groups,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error assigning change groups")
+            return self._text(f"Error assigning change groups: {exc}")
+        return self._wrap_result(result)
+
+    def _add_ticket_comment(self):
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        is_private = self._get_bool_argument("is_private", False)
+        try:
+            result = glpi.tickets.add_followup(
+                ticket_id=self._get_from_arguments("ticket_id", "id"),
+                content=self.arguments.get("content"),
+                is_private=is_private,
+                additional_fields=additional,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error adding ticket comment")
+            return self._text(f"Error adding ticket comment: {exc}")
+        return self._wrap_result(result)
+
+    def _add_ticket_solution(self):
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        solution_type_id = self._get_from_arguments("solution_type_id", "solutiontypes_id")
+        try:
+            result = glpi.tickets.add_solution(
+                ticket_id=self._get_from_arguments("ticket_id", "id"),
+                content=self.arguments.get("content"),
+                solution_type_id=solution_type_id,
+                additional_fields=additional,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error adding ticket solution")
+            return self._text(f"Error adding ticket solution: {exc}")
+        return self._wrap_result(result)
+
+    def _assign_ticket_users(self):
+        users = self._get_collection_argument("users", ("user", "user_id", "users_id"))
+        try:
+            result = glpi.tickets.assign_ticket_users(
+                ticket_id=self._get_from_arguments("ticket_id", "id"),
+                users=users,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error assigning ticket users")
+            return self._text(f"Error assigning ticket users: {exc}")
+        return self._wrap_result(result)
+
+    def _assign_ticket_groups(self):
+        groups = self._get_collection_argument("groups", ("group", "group_id", "groups_id"))
+        try:
+            result = glpi.tickets.assign_ticket_groups(
+                ticket_id=self._get_from_arguments("ticket_id", "id"),
+                groups=groups,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error assigning ticket groups")
+            return self._text(f"Error assigning ticket groups: {exc}")
+        return self._wrap_result(result)
+
+    def _wrap_result(self, result: Any):
         if hasattr(result, "summary") and callable(result.summary):
             summary = result.summary()
             details_obj = None
@@ -140,7 +280,7 @@ class CommandHandler:
                 try:
                     details_obj = result.as_dict()
                 except Exception:  # pragma: no cover - defensive
-                    logger.debug("Could not serialise creation result", exc_info=True)
+                    logger.debug("Could not serialise result", exc_info=True)
             if details_obj is not None:
                 try:
                     details = json.dumps(details_obj, indent=2)
@@ -155,6 +295,21 @@ class CommandHandler:
             except TypeError:
                 text = str(result)
         return self._text(text)
+
+    def _get_from_arguments(self, *keys: str):
+        for key in keys:
+            if key in self.arguments:
+                return self.arguments[key]
+        return None
+
+    def _get_collection_argument(self, primary: str, alternatives: Sequence[str]):
+        value = self.arguments.get(primary)
+        if value is not None:
+            return value
+        for key in alternatives:
+            if key in self.arguments:
+                return self.arguments[key]
+        return None
 
     def _get_int_argument(self, key: str, default: Optional[int]) -> Optional[int]:
         value = self.arguments.get(key, default)

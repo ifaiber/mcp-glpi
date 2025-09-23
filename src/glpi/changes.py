@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from glpi_client import RequestHandler, ResponseRange, SortOrder
 
@@ -63,6 +63,53 @@ _ENUM_FIELDS = {
 
 def _normalize_label_key(value: str) -> str:
     return "".join(ch for ch in value.lower() if ch.isalnum())
+
+
+def _ensure_int(value: Any, field_name: str) -> int:
+    if value is None:
+        raise ValueError(f"{field_name} is required")
+    try:
+        return int(value)
+    except (TypeError, ValueError) as err:
+        raise ValueError(f"{field_name} must be an integer") from err
+
+
+def _ensure_positive_int(value: Any, field_name: str) -> int:
+    int_value = _ensure_int(value, field_name)
+    if int_value <= 0:
+        raise ValueError(f"{field_name} must be greater than zero")
+    return int_value
+
+
+def _ensure_non_empty_text(value: Any, field_name: str) -> str:
+    if value is None:
+        raise ValueError(f"{field_name} is required")
+    text = str(value).strip()
+    if not text:
+        raise ValueError(f"{field_name} cannot be empty")
+    return text
+
+
+def _ensure_optional_dict(value: Any, field_name: str) -> Optional[Dict[str, Any]]:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    raise ValueError(f"{field_name} must be an object if provided")
+
+
+def _prepare_bool_flag(value: Any) -> Any:
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if isinstance(value, (int, float)):
+        return 1 if int(value) else 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y"}:
+            return 1
+        if lowered in {"0", "false", "no", "n"}:
+            return 0
+    return value
 
 
 def _normalize_enum_value(value: Any, labels: Dict[int, str], field_name: str) -> Optional[int]:
@@ -177,6 +224,27 @@ class ChangeCreationResult:
         return f"Change created (id={change_id_str}): {name}"
 
 
+@dataclass
+class ChangeMutationResult:
+    action: str
+    change_id: int
+    description: str
+    payload: Any
+    response: Any
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "action": self.action,
+            "change_id": self.change_id,
+            "description": self.description,
+            "payload": self.payload,
+            "response": self.response,
+        }
+
+    def summary(self) -> str:
+        return self.description
+
+
 def fetch_changes(
     limit: Optional[int] = 20,
     offset: int = 0,
@@ -260,6 +328,197 @@ def all_changes(
     return change_list.as_dict(selected_fields)
 
 
+def _normalize_actor_entries(
+    change_id: int,
+    entries: Union[Dict[str, Any], Sequence[Any], Any],
+    *,
+    actor_id_key: str,
+    item_id_field: str,
+    entry_name: str,
+) -> List[Dict[str, Any]]:
+    if entries is None:
+        raise ValueError(f"{entry_name} are required")
+    if isinstance(entries, dict) or not isinstance(entries, Iterable):
+        raw_entries: List[Any] = [entries]
+    else:
+        raw_entries = list(entries)
+        if not raw_entries:
+            raise ValueError(f"{entry_name} cannot be empty")
+
+    normalized: List[Dict[str, Any]] = []
+    actor_alt_keys = {
+        actor_id_key,
+        actor_id_key.rstrip("s"),
+        actor_id_key.replace("_id", ""),
+        actor_id_key.replace("_", ""),
+    }
+    for index, entry in enumerate(raw_entries, start=1):
+        current: Dict[str, Any]
+        if isinstance(entry, (int, float, str)) and not isinstance(entry, bool):
+            actor_id = _ensure_positive_int(entry, f"{entry_name[:-1]}_id")
+            current = {actor_id_key: actor_id}
+        elif isinstance(entry, dict):
+            working = {k: v for k, v in entry.items() if v is not None}
+            actor_id_value = None
+            for key in actor_alt_keys:
+                if key in working:
+                    actor_id_value = working.pop(key)
+                    break
+            if actor_id_value is None:
+                raise ValueError(
+                    f"{actor_id_key} is required for element #{index} in {entry_name}"
+                )
+            actor_id = _ensure_positive_int(actor_id_value, actor_id_key)
+            current = working
+            current[actor_id_key] = actor_id
+        else:
+            raise ValueError(
+                f"Unsupported value for {entry_name[:-1]} #{index}: {entry}"
+            )
+
+        current[item_id_field] = change_id
+        if "type" in current and current["type"] is not None:
+            current["type"] = _ensure_int(current["type"], "type")
+        for flag_key in ("use_notification", "is_dynamic", "is_manager"):
+            if flag_key in current:
+                current[flag_key] = _prepare_bool_flag(current[flag_key])
+        normalized.append(current)
+    return normalized
+
+
+def assign_change_users(
+    change_id: Any,
+    users: Union[Dict[str, Any], Sequence[Any], Any],
+) -> ChangeMutationResult:
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+    normalized = _normalize_actor_entries(
+        change_id_int,
+        users,
+        actor_id_key="users_id",
+        item_id_field="changes_id",
+        entry_name="users",
+    )
+    payload_to_send: Union[Dict[str, Any], List[Dict[str, Any]]]
+    if len(normalized) == 1:
+        payload_to_send = normalized[0]
+    else:
+        payload_to_send = normalized
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.add_items("Change_User", payload_to_send)
+
+    description = f"Assigned {len(normalized)} user(s) to change {change_id_int}"
+    return ChangeMutationResult(
+        action="assign_change_users",
+        change_id=change_id_int,
+        description=description,
+        payload=payload_to_send,
+        response=response,
+    )
+
+
+def assign_change_groups(
+    change_id: Any,
+    groups: Union[Dict[str, Any], Sequence[Any], Any],
+) -> ChangeMutationResult:
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+    normalized = _normalize_actor_entries(
+        change_id_int,
+        groups,
+        actor_id_key="groups_id",
+        item_id_field="changes_id",
+        entry_name="groups",
+    )
+    payload_to_send: Union[Dict[str, Any], List[Dict[str, Any]]]
+    if len(normalized) == 1:
+        payload_to_send = normalized[0]
+    else:
+        payload_to_send = normalized
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.add_items("Change_Group", payload_to_send)
+
+    description = f"Assigned {len(normalized)} group(s) to change {change_id_int}"
+    return ChangeMutationResult(
+        action="assign_change_groups",
+        change_id=change_id_int,
+        description=description,
+        payload=payload_to_send,
+        response=response,
+    )
+
+
+def add_followup(
+    change_id: Any,
+    content: Any,
+    *,
+    is_private: bool | Any = False,
+    additional_fields: Optional[Dict[str, Any]] = None,
+) -> ChangeMutationResult:
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+    comment = _ensure_non_empty_text(content, "content")
+    payload: Dict[str, Any] = {
+        "itemtype": "Change",
+        "items_id": change_id_int,
+        "content": comment,
+    }
+    private_flag = _prepare_bool_flag(is_private)
+    if private_flag is not None:
+        payload["is_private"] = private_flag
+
+    extras = _ensure_optional_dict(additional_fields, "additional_fields")
+    if extras:
+        payload.update({k: v for k, v in extras.items() if v is not None})
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.add_items("ITILFollowup", payload)
+
+    description = f"Added follow-up to change {change_id_int}"
+    return ChangeMutationResult(
+        action="add_change_comment",
+        change_id=change_id_int,
+        description=description,
+        payload=payload,
+        response=response,
+    )
+
+
+def add_solution(
+    change_id: Any,
+    content: Any,
+    *,
+    solution_type_id: Any = None,
+    additional_fields: Optional[Dict[str, Any]] = None,
+) -> ChangeMutationResult:
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+    solution_text = _ensure_non_empty_text(content, "content")
+    payload: Dict[str, Any] = {
+        "itemtype": "Change",
+        "items_id": change_id_int,
+        "content": solution_text,
+    }
+    if solution_type_id is not None:
+        payload["solutiontypes_id"] = _ensure_positive_int(
+            solution_type_id, "solution_type_id"
+        )
+
+    extras = _ensure_optional_dict(additional_fields, "additional_fields")
+    if extras:
+        payload.update({k: v for k, v in extras.items() if v is not None})
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.add_items("ITILSolution", payload)
+
+    description = f"Added solution to change {change_id_int}"
+    return ChangeMutationResult(
+        action="add_change_solution",
+        change_id=change_id_int,
+        description=description,
+        payload=payload,
+        response=response,
+    )
+
+
 def create_change(
     name: str,
     content: str = "",
@@ -300,8 +559,9 @@ def create_change(
     if entity_id is not None:
         payload["entities_id"] = int(entity_id)
 
-    if additional_fields:
-        for key, value in additional_fields.items():
+    extras = _ensure_optional_dict(additional_fields, "additional_fields")
+    if extras:
+        for key, value in extras.items():
             if value is None:
                 continue
             payload[key] = value
