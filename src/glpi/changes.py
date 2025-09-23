@@ -570,3 +570,144 @@ def create_change(
         response = handler.create_change(**payload)
 
     return ChangeCreationResult(payload=payload, response=response)
+
+
+
+def link_ticket(
+    change_id: Any,
+    ticket_id: Any,
+    *,
+    additional_fields: Optional[Dict[str, Any]] = None,
+) -> ChangeMutationResult:
+    """Link a ticket to a change."""
+
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
+
+    payload: Dict[str, Any] = {
+        "changes_id": change_id_int,
+        "tickets_id": ticket_id_int,
+    }
+
+    extras = _ensure_optional_dict(additional_fields, "additional_fields")
+    if extras:
+        payload.update({k: v for k, v in extras.items() if v is not None})
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.add_items("Change_Ticket", payload)
+
+    description = f"Linked change {change_id_int} to ticket {ticket_id_int}"
+    return ChangeMutationResult(
+        action="link_change_ticket",
+        change_id=change_id_int,
+        description=description,
+        payload=payload,
+        response=response,
+    )
+
+
+def unlink_ticket(
+    change_id: Any,
+    link_id: Any,
+    *,
+    purge: bool | Any = False,
+    keep_history: bool | Any = True,
+) -> ChangeMutationResult:
+    """Remove the relation between a change and a ticket using the link identifier."""
+
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+    link_id_int = _ensure_positive_int(link_id, "link_id")
+    purge_flag = bool(_prepare_bool_flag(purge))
+    keep_history_flag = bool(_prepare_bool_flag(keep_history))
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.delete_items(
+            "Change_Ticket",
+            [link_id_int],
+            purge=purge_flag,
+            log=keep_history_flag,
+        )
+
+    description = f"Unlinked change {change_id_int} from ticket relation {link_id_int}"
+    return ChangeMutationResult(
+        action="unlink_change_ticket",
+        change_id=change_id_int,
+        description=description,
+        payload={"link_id": link_id_int, "purge": purge_flag, "keep_history": keep_history_flag},
+        response=response,
+    )
+
+
+def update_change(
+    change_id: Any,
+    fields: Dict[str, Any],
+) -> ChangeMutationResult:
+    """Update a change with the provided fields."""
+
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+    if not isinstance(fields, dict) or not fields:
+        raise ValueError("fields must be a non-empty object")
+
+    sanitized: Dict[str, Any] = {k: v for k, v in fields.items() if v is not None}
+    if not sanitized:
+        raise ValueError("fields cannot be empty after removing null values")
+
+    for enum_field, labels in _ENUM_FIELDS.items():
+        if enum_field in sanitized:
+            sanitized[enum_field] = _normalize_enum_value(
+                sanitized[enum_field], labels, enum_field
+            )
+
+    if "itilcategories_id" in sanitized:
+        sanitized["itilcategories_id"] = _ensure_positive_int(
+            sanitized["itilcategories_id"], "itilcategories_id"
+        )
+    if "entities_id" in sanitized:
+        sanitized["entities_id"] = _ensure_positive_int(
+            sanitized["entities_id"], "entities_id"
+        )
+
+    payload = {"id": change_id_int, **sanitized}
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.update_items("Change", [payload])
+
+    description = f"Updated change {change_id_int}"
+    return ChangeMutationResult(
+        action="update_change",
+        change_id=change_id_int,
+        description=description,
+        payload=payload,
+        response=response,
+    )
+
+
+
+def delete_change(
+    change_id: Any,
+    *,
+    purge: bool | Any = False,
+    keep_history: bool | Any = True,
+) -> ChangeMutationResult:
+    """Delete a change from GLPI."""
+
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+    purge_flag = bool(_prepare_bool_flag(purge))
+    keep_history_flag = bool(_prepare_bool_flag(keep_history))
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.delete_items(
+            "Change",
+            [change_id_int],
+            purge=purge_flag,
+            log=keep_history_flag,
+        )
+
+    description = f"Deleted change {change_id_int}"
+    return ChangeMutationResult(
+        action="delete_change",
+        change_id=change_id_int,
+        description=description,
+        payload={"change_id": change_id_int, "purge": purge_flag, "keep_history": keep_history_flag},
+        response=response,
+    )

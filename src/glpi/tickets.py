@@ -197,8 +197,6 @@ class TicketList:
         table_lines = [header, separator, *rows]
         if self.response_range is not None:
             table_lines.append("")
-        if self.response_range is not None:
-            table_lines.append("")
             table_lines.append(f"Range: {self.response_range}")
         return "\n".join(table_lines)
 
@@ -573,3 +571,144 @@ def create_ticket(
         response = handler.create_ticket(**payload)
 
     return TicketCreationResult(payload=payload, response=response)
+
+
+
+def link_change(
+    ticket_id: Any,
+    change_id: Any,
+    *,
+    additional_fields: Optional[Dict[str, Any]] = None,
+) -> TicketMutationResult:
+    """Link a change to a ticket."""
+
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
+    change_id_int = _ensure_positive_int(change_id, "change_id")
+
+    payload: Dict[str, Any] = {
+        "tickets_id": ticket_id_int,
+        "changes_id": change_id_int,
+    }
+
+    extras = _ensure_optional_dict(additional_fields, "additional_fields")
+    if extras:
+        payload.update({k: v for k, v in extras.items() if v is not None})
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.add_items("Change_Ticket", payload)
+
+    description = f"Linked ticket {ticket_id_int} to change {change_id_int}"
+    return TicketMutationResult(
+        action="link_ticket_change",
+        ticket_id=ticket_id_int,
+        description=description,
+        payload=payload,
+        response=response,
+    )
+
+
+def unlink_change(
+    ticket_id: Any,
+    link_id: Any,
+    *,
+    purge: bool | Any = False,
+    keep_history: bool | Any = True,
+) -> TicketMutationResult:
+    """Remove the relation between a ticket and a change using the link identifier."""
+
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
+    link_id_int = _ensure_positive_int(link_id, "link_id")
+    purge_flag = bool(_prepare_bool_flag(purge))
+    keep_history_flag = bool(_prepare_bool_flag(keep_history))
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.delete_items(
+            "Change_Ticket",
+            [link_id_int],
+            purge=purge_flag,
+            log=keep_history_flag,
+        )
+
+    description = f"Unlinked ticket {ticket_id_int} from change relation {link_id_int}"
+    return TicketMutationResult(
+        action="unlink_ticket_change",
+        ticket_id=ticket_id_int,
+        description=description,
+        payload={"link_id": link_id_int, "purge": purge_flag, "keep_history": keep_history_flag},
+        response=response,
+    )
+
+
+def update_ticket(
+    ticket_id: Any,
+    fields: Dict[str, Any],
+) -> TicketMutationResult:
+    """Update a ticket with the provided fields."""
+
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
+    if not isinstance(fields, dict) or not fields:
+        raise ValueError("fields must be a non-empty object")
+
+    sanitized: Dict[str, Any] = {k: v for k, v in fields.items() if v is not None}
+    if not sanitized:
+        raise ValueError("fields cannot be empty after removing null values")
+
+    for enum_field, labels in _ENUM_FIELDS.items():
+        if enum_field in sanitized:
+            sanitized[enum_field] = _normalize_enum_value(
+                sanitized[enum_field], labels, enum_field
+            )
+
+    if "itilcategories_id" in sanitized:
+        sanitized["itilcategories_id"] = _ensure_positive_int(
+            sanitized["itilcategories_id"], "itilcategories_id"
+        )
+    if "entities_id" in sanitized:
+        sanitized["entities_id"] = _ensure_positive_int(
+            sanitized["entities_id"], "entities_id"
+        )
+
+    payload = {"id": ticket_id_int, **sanitized}
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.update_items("Ticket", [payload])
+
+    description = f"Updated ticket {ticket_id_int}"
+    return TicketMutationResult(
+        action="update_ticket",
+        ticket_id=ticket_id_int,
+        description=description,
+        payload=payload,
+        response=response,
+    )
+
+
+
+def delete_ticket(
+    ticket_id: Any,
+    *,
+    purge: bool | Any = False,
+    keep_history: bool | Any = True,
+) -> TicketMutationResult:
+    """Delete a ticket from GLPI."""
+
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
+    purge_flag = bool(_prepare_bool_flag(purge))
+    keep_history_flag = bool(_prepare_bool_flag(keep_history))
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.delete_items(
+            "Ticket",
+            [ticket_id_int],
+            purge=purge_flag,
+            log=keep_history_flag,
+        )
+
+    description = f"Deleted ticket {ticket_id_int}"
+    return TicketMutationResult(
+        action="delete_ticket",
+        ticket_id=ticket_id_int,
+        description=description,
+        payload={"ticket_id": ticket_id_int, "purge": purge_flag, "keep_history": keep_history_flag},
+        response=response,
+    )

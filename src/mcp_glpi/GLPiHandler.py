@@ -48,6 +48,22 @@ class CommandHandler:
             return self._assign_ticket_users()
         if self.command == "assign_ticket_groups":
             return self._assign_ticket_groups()
+        if self.command == "link_change_to_ticket":
+            return self._link_change_to_ticket()
+        if self.command == "link_ticket_to_change":
+            return self._link_ticket_to_change()
+        if self.command == "unlink_change_ticket":
+            return self._unlink_change_ticket()
+        if self.command == "unlink_ticket_change":
+            return self._unlink_ticket_change()
+        if self.command == "update_change":
+            return self._update_change()
+        if self.command == "update_ticket":
+            return self._update_ticket()
+        if self.command == "delete_change":
+            return self._delete_change()
+        if self.command == "delete_ticket":
+            return self._delete_ticket()
         return self._text(f"Herramienta desconocida: {self.command}")
 
     def validate_session(self):
@@ -272,6 +288,156 @@ class CommandHandler:
             return self._text(f"Error assigning ticket groups: {exc}")
         return self._wrap_result(result)
 
+    def _link_change_to_ticket(self):
+        change_id = self._get_from_arguments("change_id", "id", "changes_id")
+        ticket_id = self._get_from_arguments("ticket_id", "ticket", "tickets_id")
+        if change_id is None or ticket_id is None:
+            return self._text("Los parametros 'change_id' y 'ticket_id' son obligatorios.")
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        try:
+            result = glpi.changes.link_ticket(
+                change_id=change_id,
+                ticket_id=ticket_id,
+                additional_fields=additional,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error linking change to ticket")
+            return self._text(f"Error linking change to ticket: {exc}")
+        return self._wrap_result(result)
+
+    def _link_ticket_to_change(self):
+        ticket_id = self._get_from_arguments("ticket_id", "id", "tickets_id")
+        change_id = self._get_from_arguments("change_id", "change", "changes_id")
+        if ticket_id is None or change_id is None:
+            return self._text("Los parametros 'ticket_id' y 'change_id' son obligatorios.")
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        try:
+            result = glpi.tickets.link_change(
+                ticket_id=ticket_id,
+                change_id=change_id,
+                additional_fields=additional,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error linking ticket to change")
+            return self._text(f"Error linking ticket to change: {exc}")
+        return self._wrap_result(result)
+
+    def _unlink_change_ticket(self):
+        change_id = self._get_from_arguments("change_id", "id", "changes_id")
+        link_id = self._get_from_arguments("link_id", "relation_id")
+        if change_id is None or link_id is None:
+            return self._text("Los parametros 'change_id' y 'link_id' son obligatorios.")
+        purge = self.arguments.get("purge", False)
+        keep_history = self.arguments.get("keep_history", True)
+        try:
+            result = glpi.changes.unlink_ticket(
+                change_id=change_id,
+                link_id=link_id,
+                purge=purge,
+                keep_history=keep_history,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error unlinking change ticket")
+            return self._text(f"Error unlinking change ticket: {exc}")
+        return self._wrap_result(result)
+
+    def _unlink_ticket_change(self):
+        ticket_id = self._get_from_arguments("ticket_id", "id", "tickets_id")
+        link_id = self._get_from_arguments("link_id", "relation_id")
+        if ticket_id is None or link_id is None:
+            return self._text("Los parametros 'ticket_id' y 'link_id' son obligatorios.")
+        purge = self.arguments.get("purge", False)
+        keep_history = self.arguments.get("keep_history", True)
+        try:
+            result = glpi.tickets.unlink_change(
+                ticket_id=ticket_id,
+                link_id=link_id,
+                purge=purge,
+                keep_history=keep_history,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error unlinking ticket change")
+            return self._text(f"Error unlinking ticket change: {exc}")
+        return self._wrap_result(result)
+
+    def _update_change(self):
+        change_id = self._get_from_arguments("change_id", "id", "changes_id")
+        fields = self._get_mapping_argument("fields", ("updates", "data"))
+        if change_id is None:
+            return self._text("El parametro 'change_id' es obligatorio para update_change.")
+        if fields is None:
+            return self._text("El parametro 'fields' es obligatorio y debe ser un objeto JSON.")
+        try:
+            result = glpi.changes.update_change(change_id=change_id, fields=fields)
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error updating change")
+            return self._text(f"Error updating change: {exc}")
+        return self._wrap_result(result)
+
+    def _update_ticket(self):
+        ticket_id = self._get_from_arguments("ticket_id", "id", "tickets_id")
+        fields = self._get_mapping_argument("fields", ("updates", "data"))
+        if ticket_id is None:
+            return self._text("El parametro 'ticket_id' es obligatorio para update_ticket.")
+        if fields is None:
+            return self._text("El parametro 'fields' es obligatorio y debe ser un objeto JSON.")
+        try:
+            result = glpi.tickets.update_ticket(ticket_id=ticket_id, fields=fields)
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error updating ticket")
+            return self._text(f"Error updating ticket: {exc}")
+        return self._wrap_result(result)
+
+    def _delete_change(self):
+        change_id = self._get_from_arguments("change_id", "id", "changes_id")
+        if change_id is None:
+            return self._text("El parametro 'change_id' es obligatorio para delete_change.")
+        purge = self._get_bool_argument("purge", False)
+        keep_history = self._get_bool_argument("keep_history", True)
+        try:
+            result = glpi.changes.delete_change(
+                change_id=change_id,
+                purge=purge,
+                keep_history=keep_history,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error deleting change")
+            return self._text(f"Error deleting change: {exc}")
+        return self._wrap_result(result)
+
+    def _delete_ticket(self):
+        ticket_id = self._get_from_arguments("ticket_id", "id", "tickets_id")
+        if ticket_id is None:
+            return self._text("El parametro 'ticket_id' es obligatorio para delete_ticket.")
+        purge = self._get_bool_argument("purge", False)
+        keep_history = self._get_bool_argument("keep_history", True)
+        try:
+            result = glpi.tickets.delete_ticket(
+                ticket_id=ticket_id,
+                purge=purge,
+                keep_history=keep_history,
+            )
+        except ValueError as exc:
+            return self._text(f"Invalid argument: {exc}")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error deleting ticket")
+            return self._text(f"Error deleting ticket: {exc}")
+        return self._wrap_result(result)
+
     def _wrap_result(self, result: Any):
         if hasattr(result, "summary") and callable(result.summary):
             summary = result.summary()
@@ -309,6 +475,28 @@ class CommandHandler:
         for key in alternatives:
             if key in self.arguments:
                 return self.arguments[key]
+        return None
+
+    def _get_mapping_argument(self, primary: str, alternatives: Sequence[str] = ()): 
+        keys = (primary, *alternatives)
+        for key in keys:
+            if key not in self.arguments:
+                continue
+            value = self.arguments[key]
+            if isinstance(value, dict):
+                return value
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                except json.JSONDecodeError:
+                    logger.warning("Invalid JSON provided for %s: %s", key, value)
+                    return None
+                if isinstance(parsed, dict):
+                    return parsed
+                logger.warning("JSON for %s must decode to an object", key)
+                return None
+            logger.warning("Unsupported mapping value for %s: %s", key, value)
+            return None
         return None
 
     def _get_int_argument(self, key: str, default: Optional[int]) -> Optional[int]:

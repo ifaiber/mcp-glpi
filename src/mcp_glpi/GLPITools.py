@@ -236,6 +236,109 @@ def _assignment_schema(
     }
 
 
+def _link_schema(
+    primary_field: str,
+    primary_label: str,
+    secondary_field: str,
+    secondary_label: str,
+) -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            primary_field: {
+                "type": ["integer", "string"],
+                "description": f"Identificador del {primary_label}",
+            },
+            secondary_field: {
+                "type": ["integer", "string"],
+                "description": f"Identificador del {secondary_label}",
+            },
+            "additional": {
+                "type": "object",
+                "additionalProperties": True,
+                "description": "Campos adicionales que se enviaran tal cual",
+            },
+        },
+        "required": [primary_field, secondary_field],
+    }
+
+
+_def_bool = ["boolean", "string", "integer", "null"]
+
+
+def _unlink_schema(
+    item_field: str,
+    item_label: str,
+) -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            item_field: {
+                "type": ["integer", "string"],
+                "description": f"Identificador del {item_label}",
+            },
+            "link_id": {
+                "type": ["integer", "string"],
+                "description": "Identificador del enlace (Change_Ticket)",
+            },
+            "purge": {
+                "type": _def_bool,
+                "description": "Forzar purga del enlace",
+            },
+            "keep_history": {
+                "type": _def_bool,
+                "description": "Mantener historial de GLPI",
+            },
+        },
+        "required": [item_field, "link_id"],
+    }
+
+
+def _update_schema(
+    item_field: str,
+    item_label: str,
+) -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            item_field: {
+                "type": ["integer", "string"],
+                "description": f"Identificador del {item_label}",
+            },
+            "fields": {
+                "type": "object",
+                "additionalProperties": True,
+                "description": "Campos a actualizar",
+            },
+        },
+        "required": [item_field, "fields"],
+    }
+
+
+def _delete_schema(
+    item_field: str,
+    item_label: str,
+) -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            item_field: {
+                "type": ["integer", "string"],
+                "description": f"Identificador del {item_label}",
+            },
+            "purge": {
+                "type": _def_bool,
+                "description": "Forzar purga del elemento",
+            },
+            "keep_history": {
+                "type": _def_bool,
+                "description": "Mantener historial de GLPI",
+            },
+        },
+        "required": [item_field],
+    }
+
+
 tools = [
     types.Tool(
         name="echo",
@@ -351,5 +454,40 @@ tools = [
             _actor_schema("groups_id", "grupo"),
             "Parametros para asignar grupos a un cambio",
         ),
+    ),
+    types.Tool(
+        name="link_change_to_ticket",
+        description="Vincula un ticket existente a un cambio",
+        inputSchema=_link_schema("change_id", "cambio", "ticket_id", "ticket"),
+    ),
+    types.Tool(
+        name="link_ticket_to_change",
+        description="Vincula un cambio existente a un ticket",
+        inputSchema=_link_schema("ticket_id", "ticket", "change_id", "cambio"),
+    ),
+    types.Tool(
+        name="unlink_change_ticket",
+        description="Elimina la relacion Change_Ticket desde un cambio",
+        inputSchema=_unlink_schema("change_id", "cambio"),
+    ),
+    types.Tool(
+        name="unlink_ticket_change",
+        description="Elimina la relacion Change_Ticket desde un ticket",
+        inputSchema=_unlink_schema("ticket_id", "ticket"),
+    ),
+    types.Tool(
+        name="update_change",
+        description="Actualiza campos de un cambio",
+        inputSchema=_update_schema("change_id", "cambio"),
+    ),
+    types.Tool(
+        name="delete_change",
+        description="Elimina un cambio",
+        inputSchema=_delete_schema("change_id", "cambio"),
+    ),
+    types.Tool(
+        name="delete_ticket",
+        description="Elimina un ticket",
+        inputSchema=_delete_schema("ticket_id", "ticket"),
     ),
 ]
