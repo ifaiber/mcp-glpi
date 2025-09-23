@@ -2,7 +2,7 @@
   "mcpServers": {
     "mcp-glpi": {
       "command": "C:/devIdeas/Repos-propios/mcp-glpi/.venv/Scripts/python.exe",
-      "args": ["-m", "server"],
+      "args": ["-m", "mcp_glpi.server"],
       "cwd": "C:/devIdeas/Repos-propios/mcp-glpi",
       "env": {
         "PYTHONPATH": "C:/devIdeas/Repos-propios/mcp-glpi/src"
