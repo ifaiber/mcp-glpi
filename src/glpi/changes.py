@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -10,6 +11,7 @@ from glpi_client import RequestHandler, ResponseRange, SortOrder
 from common.config import get_config
 
 config = get_config()
+logger = logging.getLogger(__name__)
 
 STATUS_LABELS = {
     1: "New",
@@ -51,10 +53,45 @@ DEFAULT_FIELDS: Sequence[str] = (
     "date_mod",
 )
 
+_ENUM_FIELDS = {
+    "status": STATUS_LABELS,
+    "impact": IMPACT_LABELS,
+    "priority": PRIORITY_LABELS,
+    "urgency": URGENCY_LABELS,
+}
 
-def _translate(value: Any, mapping: Dict[int, str]) -> Any:
+
+def _normalize_label_key(value: str) -> str:
+    return "".join(ch for ch in value.lower() if ch.isalnum())
+
+
+def _normalize_enum_value(value: Any, labels: Dict[int, str], field_name: str) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        candidate = int(value)
+        if candidate in labels:
+            return candidate
+        raise ValueError(f"Unknown {field_name}: {value}")
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        if stripped.isdigit():
+            candidate = int(stripped)
+            if candidate in labels:
+                return candidate
+        normalized = _normalize_label_key(stripped)
+        for code, label in labels.items():
+            if normalized in {_normalize_label_key(label), str(code)}:
+                return code
+        raise ValueError(f"Unknown {field_name}: {value}")
+    raise ValueError(f"Unsupported value for {field_name}: {value}")
+
+
+def _translate_enum(value: Any, labels: Dict[int, str]) -> Any:
     try:
-        return mapping[int(value)]
+        return labels[int(value)]
     except (TypeError, ValueError, KeyError):
         return value
 
@@ -63,14 +100,9 @@ def _prepare_change(change: Dict[str, Any], fields: Sequence[str]) -> Dict[str, 
     prepared: Dict[str, Any] = {}
     for field in fields:
         value = change.get(field)
-        if field == "status":
-            value = _translate(value, STATUS_LABELS)
-        elif field == "impact":
-            value = _translate(value, IMPACT_LABELS)
-        elif field == "urgency":
-            value = _translate(value, URGENCY_LABELS)
-        elif field == "priority":
-            value = _translate(value, PRIORITY_LABELS)
+        labels = _ENUM_FIELDS.get(field)
+        if labels:
+            value = _translate_enum(value, labels)
         prepared[field] = value
     return prepared
 
@@ -119,6 +151,30 @@ class ChangeList:
             table_lines.append("")
             table_lines.append(f"Range: {self.response_range}")
         return "\n".join(table_lines)
+
+
+@dataclass
+class ChangeCreationResult:
+    payload: Dict[str, Any]
+    response: Dict[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"payload": self.payload, "response": self.response}
+
+    def summary(self) -> str:
+        change_id: Optional[Any] = None
+        name = self.payload.get("name")
+        response_obj = self.response
+        if isinstance(response_obj, dict):
+            change_id = response_obj.get("id") or response_obj.get("ID")
+            name = response_obj.get("name", name)
+        elif isinstance(response_obj, list) and response_obj:
+            first = response_obj[0]
+            if isinstance(first, dict):
+                change_id = first.get("id") or first.get("ID")
+                name = first.get("name", name)
+        change_id_str = str(change_id) if change_id is not None else "unknown"
+        return f"Change created (id={change_id_str}): {name}"
 
 
 def fetch_changes(
@@ -202,3 +258,55 @@ def all_changes(
         return change_list.items
 
     return change_list.as_dict(selected_fields)
+
+
+def create_change(
+    name: str,
+    content: str = "",
+    *,
+    status: Optional[Union[int, str]] = None,
+    impact: Optional[Union[int, str]] = None,
+    priority: Optional[Union[int, str]] = None,
+    urgency: Optional[Union[int, str]] = None,
+    category_id: Optional[int] = None,
+    entity_id: Optional[int] = None,
+    additional_fields: Optional[Dict[str, Any]] = None,
+) -> ChangeCreationResult:
+    """Create a change in GLPI and return the payload and response."""
+
+    if not name or not name.strip():
+        raise ValueError("name is required to create a change")
+
+    payload: Dict[str, Any] = {
+        "name": name.strip(),
+        "content": content or "",
+    }
+
+    try:
+        if status is not None:
+            payload["status"] = _normalize_enum_value(status, STATUS_LABELS, "status")
+        if impact is not None:
+            payload["impact"] = _normalize_enum_value(impact, IMPACT_LABELS, "impact")
+        if priority is not None:
+            payload["priority"] = _normalize_enum_value(priority, PRIORITY_LABELS, "priority")
+        if urgency is not None:
+            payload["urgency"] = _normalize_enum_value(urgency, URGENCY_LABELS, "urgency")
+    except ValueError as exc:
+        logger.debug("Enum normalization failed: %s", exc)
+        raise
+
+    if category_id is not None:
+        payload["itilcategories_id"] = int(category_id)
+    if entity_id is not None:
+        payload["entities_id"] = int(entity_id)
+
+    if additional_fields:
+        for key, value in additional_fields.items():
+            if value is None:
+                continue
+            payload[key] = value
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.create_change(**payload)
+
+    return ChangeCreationResult(payload=payload, response=response)

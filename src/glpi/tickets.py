@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -10,6 +11,7 @@ from glpi_client import RequestHandler, ResponseRange, SortOrder
 from common.config import get_config
 
 config = get_config()
+logger = logging.getLogger(__name__)
 
 STATUS_LABELS = {
     1: "New",
@@ -28,27 +30,69 @@ PRIORITY_LABELS = {
     5: "Very low",
 }
 
+IMPACT_LABELS = {
+    1: "High",
+    2: "Medium",
+    3: "Low",
+}
+
+URGENCY_LABELS = {
+    1: "High",
+    2: "Medium",
+    3: "Low",
+}
+
 DEFAULT_FIELDS: Sequence[str] = (
     "id",
     "name",
     "status",
     "priority",
+    "impact",
+    "urgency",
     "date",
     "date_mod",
     "closedate",
 )
 
+_ENUM_FIELDS = {
+    "status": STATUS_LABELS,
+    "priority": PRIORITY_LABELS,
+    "impact": IMPACT_LABELS,
+    "urgency": URGENCY_LABELS,
+}
 
-def _translate_status(value: Any) -> Any:
+
+def _normalize_label_key(value: str) -> str:
+    return "".join(ch for ch in value.lower() if ch.isalnum())
+
+
+def _normalize_enum_value(value: Any, labels: Dict[int, str], field_name: str) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        candidate = int(value)
+        if candidate in labels:
+            return candidate
+        raise ValueError(f"Unknown {field_name}: {value}")
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        if stripped.isdigit():
+            candidate = int(stripped)
+            if candidate in labels:
+                return candidate
+        normalized = _normalize_label_key(stripped)
+        for code, label in labels.items():
+            if normalized in {_normalize_label_key(label), str(code)}:
+                return code
+        raise ValueError(f"Unknown {field_name}: {value}")
+    raise ValueError(f"Unsupported value for {field_name}: {value}")
+
+
+def _translate_enum(value: Any, labels: Dict[int, str]) -> Any:
     try:
-        return STATUS_LABELS[int(value)]
-    except (TypeError, ValueError, KeyError):
-        return value
-
-
-def _translate_priority(value: Any) -> Any:
-    try:
-        return PRIORITY_LABELS[int(value)]
+        return labels[int(value)]
     except (TypeError, ValueError, KeyError):
         return value
 
@@ -57,10 +101,9 @@ def _prepare_ticket(ticket: Dict[str, Any], fields: Sequence[str]) -> Dict[str, 
     prepared: Dict[str, Any] = {}
     for field in fields:
         value = ticket.get(field)
-        if field == "status":
-            value = _translate_status(value)
-        elif field == "priority":
-            value = _translate_priority(value)
+        labels = _ENUM_FIELDS.get(field)
+        if labels:
+            value = _translate_enum(value, labels)
         prepared[field] = value
     return prepared
 
@@ -109,6 +152,30 @@ class TicketList:
             table_lines.append("")
             table_lines.append(f"Range: {self.response_range}")
         return "\n".join(table_lines)
+
+
+@dataclass
+class TicketCreationResult:
+    payload: Dict[str, Any]
+    response: Dict[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"payload": self.payload, "response": self.response}
+
+    def summary(self) -> str:
+        ticket_id: Optional[Any] = None
+        name = self.payload.get("name")
+        response_obj = self.response
+        if isinstance(response_obj, dict):
+            ticket_id = response_obj.get("id") or response_obj.get("ID")
+            name = response_obj.get("name", name)
+        elif isinstance(response_obj, list) and response_obj:
+            first = response_obj[0]
+            if isinstance(first, dict):
+                ticket_id = first.get("id") or first.get("ID")
+                name = first.get("name", name)
+        ticket_id_str = str(ticket_id) if ticket_id is not None else "unknown"
+        return f"Ticket created (id={ticket_id_str}): {name}"
 
 
 def fetch_tickets(
@@ -192,3 +259,55 @@ def all_tickets(
         return ticket_list.items
 
     return ticket_list.as_dict(selected_fields)
+
+
+def create_ticket(
+    name: str,
+    content: str = "",
+    *,
+    status: Optional[Union[int, str]] = None,
+    impact: Optional[Union[int, str]] = None,
+    priority: Optional[Union[int, str]] = None,
+    urgency: Optional[Union[int, str]] = None,
+    category_id: Optional[int] = None,
+    entity_id: Optional[int] = None,
+    additional_fields: Optional[Dict[str, Any]] = None,
+) -> TicketCreationResult:
+    """Create a ticket in GLPI and return the payload and response."""
+
+    if not name or not name.strip():
+        raise ValueError("name is required to create a ticket")
+
+    payload: Dict[str, Any] = {
+        "name": name.strip(),
+        "content": content or "",
+    }
+
+    try:
+        if status is not None:
+            payload["status"] = _normalize_enum_value(status, STATUS_LABELS, "status")
+        if impact is not None:
+            payload["impact"] = _normalize_enum_value(impact, IMPACT_LABELS, "impact")
+        if priority is not None:
+            payload["priority"] = _normalize_enum_value(priority, PRIORITY_LABELS, "priority")
+        if urgency is not None:
+            payload["urgency"] = _normalize_enum_value(urgency, URGENCY_LABELS, "urgency")
+    except ValueError as exc:
+        logger.debug("Enum normalization failed: %s", exc)
+        raise
+
+    if category_id is not None:
+        payload["itilcategories_id"] = int(category_id)
+    if entity_id is not None:
+        payload["entities_id"] = int(entity_id)
+
+    if additional_fields:
+        for key, value in additional_fields.items():
+            if value is None:
+                continue
+            payload[key] = value
+
+    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+        response = handler.create_ticket(**payload)
+
+    return TicketCreationResult(payload=payload, response=response)

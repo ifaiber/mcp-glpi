@@ -48,6 +48,48 @@ _listing_properties = {
     },
 }
 
+_creation_properties = {
+    "name": {
+        "type": "string",
+        "description": "Nombre del elemento a crear",
+    },
+    "content": {
+        "type": "string",
+        "description": "Descripcion o contenido principal",
+    },
+    "status": {
+        "type": ["integer", "string", "null"],
+        "description": "Codigo o etiqueta del estado",
+    },
+    "impact": {
+        "type": ["integer", "string", "null"],
+        "description": "Codigo o etiqueta del impacto",
+    },
+    "priority": {
+        "type": ["integer", "string", "null"],
+        "description": "Codigo o etiqueta de la prioridad",
+    },
+    "urgency": {
+        "type": ["integer", "string", "null"],
+        "description": "Codigo o etiqueta de la urgencia",
+    },
+    "category_id": {
+        "type": ["integer", "null"],
+        "minimum": 0,
+        "description": "Identificador de la categoria (itilcategories_id)",
+    },
+    "entity_id": {
+        "type": ["integer", "null"],
+        "minimum": 0,
+        "description": "Identificador de la entidad (entities_id)",
+    },
+    "additional": {
+        "type": "object",
+        "additionalProperties": True,
+        "description": "Campos adicionales que se enviaran tal cual a la API",
+    },
+}
+
 
 def _listing_schema(description: str) -> dict:
     return {
@@ -56,6 +98,16 @@ def _listing_schema(description: str) -> dict:
         "required": [],
         "description": description,
     }
+
+
+def _creation_schema(description: str) -> dict:
+    schema = {
+        "type": "object",
+        "properties": copy.deepcopy(_creation_properties),
+        "required": ["name"],
+        "description": description,
+    }
+    return schema
 
 
 tools = [
@@ -94,6 +146,20 @@ tools = [
         description="Lista cambios de GLPI con opciones de filtrado basicas",
         inputSchema=_listing_schema(
             "Parametros para listar cambios usando glpi_client",
+        ),
+    ),
+    types.Tool(
+        name="create_ticket",
+        description="Crea un ticket en GLPI usando glpi_client",
+        inputSchema=_creation_schema(
+            "Parametros para crear un ticket (los campos adicionales van en 'additional')",
+        ),
+    ),
+    types.Tool(
+        name="create_change",
+        description="Crea un cambio en GLPI usando glpi_client",
+        inputSchema=_creation_schema(
+            "Parametros para crear un cambio (los campos adicionales van en 'additional')",
         ),
     ),
 ]
