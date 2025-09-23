@@ -20,11 +20,6 @@ class GLPIConfig(BaseSettings):
     app_token: str = ""
     user_token: str = ""
     
-    # Configuración del servidor MCP
-    server_name: str = "mcp-glpi"
-    server_version: str = "0.1.0"
-    debug_mode: bool = False
-    
     # Timeout para requests
     request_timeout: int = 30
     

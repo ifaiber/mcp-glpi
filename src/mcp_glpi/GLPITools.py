@@ -16,8 +16,8 @@ tools = [
         }
     ),
     types.Tool(
-        name="glpi_status",
-        description="Muestra el estado de la configuración GLPI",
+        name="validate_session",
+        description="Muestra información sobre si la conexion al glpi esta funcionando correctamente",
         inputSchema={
             "type": "object",
             "properties": {},

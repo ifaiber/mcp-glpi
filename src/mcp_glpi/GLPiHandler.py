@@ -1,6 +1,7 @@
 import mcp.types as types
-from .config import get_config
+from common.config import get_config
 import logging
+import glpi.session
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +16,14 @@ class CommandHandler:
             # Obtener el mensaje de los argumentos
             message = self.arguments.get("message", "No message provided")
             return [types.TextContent(type="text", text=f"Echo: {message}")]
-        elif (self.command == "glpi_status"):
-            status_info = (
-                f"GLPI URL: {self.config.url}\n"
-                f"App Token: {'✅ Configurado' if self.config.app_token else '❌ No configurado'}\n"
-                f"User Token: {'✅ Configurado' if self.config.user_token else '❌ No configurado'}\n"
-                f"Server: {self.config.server_name} v{self.config.server_version}\n"
-                f"Debug: {'Activo' if self.config.debug_mode else 'Inactivo'}"
-            )
-            return [types.TextContent(type="text", text=status_info)]
+        elif (self.command == "validate_session"):
+            return self.validate_session()
         else:
-            return [types.TextContent(type="text", text=f"Herramienta desconocida: {self.command}")]
+            return [types.T(type="text", text=f"Herramienta desconocida: {self.command}")]
+        
+    def validate_session(self):
+        session_info = glpi.session.get_full_session()
+        if session_info:
+            return [types.TextContent(type="text", text=str(session_info))]
+        else:
+            return [types.TextContent(type="text", text="Sesión no válida")]
