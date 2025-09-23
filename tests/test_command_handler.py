@@ -3,6 +3,7 @@ import pytest
 from mcp_glpi.GLPiHandler import CommandHandler
 import glpi.session as glpi_session
 import glpi.tickets as glpi_tickets
+import glpi.changes as glpi_changes
 
 
 class DummyResult:
@@ -102,3 +103,65 @@ def test_create_ticket_value_error_is_reported(monkeypatch):
 
     response = CommandHandler('create_ticket', {'name': 'Demo'}).execute()
     assert _extract_text(response) == 'Invalid argument: boom'
+
+
+def test_create_change_merges_pr_links(monkeypatch):
+    captured = {}
+
+    def fake_create_change(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Change created (id=77): Demo',
+            payload={'payload': kwargs, 'response': {'id': 77, 'name': 'Demo'}},
+        )
+
+    monkeypatch.setattr(glpi_changes, 'create_change', fake_create_change)
+
+    response = CommandHandler(
+        'create_change',
+        {
+            'name': 'Demo change',
+            'pr_links': [
+                'https://example.com/pr/1',
+                '  https://example.com/pr/2  ',
+                '',
+            ],
+            'additional': {'other': 'value'},
+        },
+    ).execute()
+
+    text = _extract_text(response)
+    assert 'Change created' in text
+    additional_fields = captured['additional_fields']
+    assert additional_fields['other'] == 'value'
+    assert additional_fields['controlistcontent'] == (
+        '<p>https://example.com/pr/1</p><p>https://example.com/pr/2</p>'
+    )
+
+
+def test_update_change_merges_pr_links(monkeypatch):
+    captured = {}
+
+    def fake_update_change(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(summary_text='Change updated', payload={'payload': kwargs})
+
+    monkeypatch.setattr(glpi_changes, 'update_change', fake_update_change)
+
+    original_fields = {'status': 3, 'controlistcontent': '<p>existing</p>'}
+    response = CommandHandler(
+        'update_change',
+        {
+            'change_id': 55,
+            'fields': original_fields,
+            'pr_links': ['https://example.com/pr/3'],
+        },
+    ).execute()
+
+    text = _extract_text(response)
+    assert 'Change updated' in text
+    assert captured['change_id'] == 55
+    merged_fields = captured['fields']
+    assert merged_fields is not original_fields
+    assert merged_fields['status'] == 3
+    assert merged_fields['controlistcontent'] == '<p>existing</p><p>https://example.com/pr/3</p>'

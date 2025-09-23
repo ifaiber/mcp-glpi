@@ -1,3 +1,4 @@
+import html
 import json
 import logging
 from typing import Any, Callable, Dict, Optional, Sequence
@@ -110,6 +111,7 @@ class CommandHandler:
         category_id = self._get_int_argument("category_id", None)
         entity_id = self._get_int_argument("entity_id", None)
         additional = self._normalize_additional(self.arguments.get("additional"))
+        additional = self._merge_pr_links(additional)
 
         try:
             result = glpi.changes.create_change(
@@ -375,6 +377,7 @@ class CommandHandler:
             return self._text("El parametro 'change_id' es obligatorio para update_change.")
         if fields is None:
             return self._text("El parametro 'fields' es obligatorio y debe ser un objeto JSON.")
+        fields = self._merge_pr_links(fields, target_key="controlistcontent")
         try:
             result = glpi.changes.update_change(change_id=change_id, fields=fields)
         except ValueError as exc:
@@ -461,6 +464,40 @@ class CommandHandler:
             except TypeError:
                 text = str(result)
         return self._text(text)
+
+    def _merge_pr_links(self, mapping: Optional[Dict[str, Any]], target_key: str = "controlistcontent"):
+        formatted = self._format_pr_links(self.arguments.get("pr_links"))
+        if not formatted:
+            return mapping
+        merged = dict(mapping or {})
+        existing = merged.get(target_key)
+        if existing:
+            merged[target_key] = f"{existing}{formatted}"
+        else:
+            merged[target_key] = formatted
+        return merged
+
+    def _format_pr_links(self, links):
+        if links is None:
+            return None
+        if isinstance(links, str):
+            values = [links]
+        elif isinstance(links, (list, tuple, set)):
+            values = list(links)
+        else:
+            logger.warning("Unsupported pr_links value: %s", links)
+            return None
+        cleaned = []
+        for value in values:
+            if value is None:
+                continue
+            text_value = str(value).strip()
+            if not text_value:
+                continue
+            cleaned.append(html.escape(text_value, quote=True))
+        if not cleaned:
+            return None
+        return ''.join(f"<p>{item}</p>" for item in cleaned)
 
     def _get_from_arguments(self, *keys: str):
         for key in keys:

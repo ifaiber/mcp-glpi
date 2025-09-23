@@ -48,6 +48,16 @@ _listing_properties = {
     },
 }
 
+_pr_links_property = {
+    "description": "URL(s) de Pull Request o cambios relacionados; acepta string o lista",
+    "anyOf": [
+        {"type": "string"},
+        {"type": "array", "items": {"type": "string"}},
+        {"type": "null"},
+    ],
+}
+
+
 _creation_properties = {
     "name": {
         "type": "string",
@@ -133,13 +143,14 @@ def _listing_schema(description: str) -> dict:
 
 
 def _creation_schema(description: str) -> dict:
-    schema = {
+    properties = copy.deepcopy(_creation_properties)
+    properties["pr_links"] = copy.deepcopy(_pr_links_property)
+    return {
         "type": "object",
-        "properties": copy.deepcopy(_creation_properties),
+        "properties": properties,
         "required": ["name"],
         "description": description,
     }
-    return schema
 
 
 def _comment_schema(item_field: str, item_label: str) -> dict:
@@ -310,6 +321,7 @@ def _update_schema(
                 "additionalProperties": True,
                 "description": "Campos a actualizar",
             },
+            "pr_links": copy.deepcopy(_pr_links_property),
         },
         "required": [item_field, "fields"],
     }

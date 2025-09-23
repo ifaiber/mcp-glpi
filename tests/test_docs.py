@@ -23,3 +23,23 @@ def test_markdown_documents_have_headings():
         content = path.read_text(encoding='utf-8').strip()
         assert content
         assert '#' in content, f'Expected at least one heading in {path.name}'
+
+
+def test_create_and_update_change_schema_expose_pr_links():
+    import mcp_glpi.GLPITools as tools
+
+    def get_tool_schema(name):
+        tool = next(t for t in tools.tools if t.name == name)
+        return tool.inputSchema
+
+    create_schema = get_tool_schema('create_change')
+    update_schema = get_tool_schema('update_change')
+
+    for schema in (create_schema, update_schema):
+        properties = schema['properties']
+        assert 'pr_links' in properties
+        assert schema.get('required') and 'pr_links' not in schema['required']
+        pr_links = properties['pr_links']
+        any_of_types = {option['type'] for option in pr_links['anyOf']}
+        assert {'string', 'array'}.issubset(any_of_types)
+        assert any_of_types.intersection({'null'})
