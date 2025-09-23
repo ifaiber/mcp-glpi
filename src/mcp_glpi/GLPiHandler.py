@@ -1,11 +1,12 @@
 import logging
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, Optional, Sequence
 
 import mcp.types as types
 from common.config import get_config
 
 import glpi.changes
 import glpi.session
+import glpi.tickets
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,9 @@ class CommandHandler:
         if self.command == "validate_session":
             return self.validate_session()
         if self.command == "list_tickets":
-            return self.list_tickets()
+            return self._list_items(glpi.tickets.all_tickets)
+        if self.command == "list_changes":
+            return self._list_items(glpi.changes.all_changes)
         return [
             types.TextContent(
                 type="text",
@@ -37,7 +40,7 @@ class CommandHandler:
             return [types.TextContent(type="text", text=str(session_info))]
         return [types.TextContent(type="text", text="Sesion no valida")]
 
-    def list_tickets(self):
+    def _list_items(self, fetcher: Callable[..., Any]):
         limit = self._get_int_argument("limit", 20)
         offset = self._get_int_argument("offset", 0)
         sort_by = self.arguments.get("sort_by", "date_mod")
@@ -48,7 +51,7 @@ class CommandHandler:
         expand_dropdowns = self._get_bool_argument("expand_dropdowns", False)
         include_deleted = self._get_bool_argument("include_deleted", False)
 
-        result = glpi.changes.all_tickets(
+        result = fetcher(
             limit=limit,
             offset=offset,
             sort_by=sort_by,
