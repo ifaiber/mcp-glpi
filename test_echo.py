@@ -1,7 +1,9 @@
-from common.config import get_config
 import logging
+
 import glpi.changes as changes
 
-logging.basicConfig(level=logging.DEBUG)
-logging
-print(changes.all_tickets())
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    tickets_table = changes.all_tickets(limit=10, output="table")
+    print(tickets_table)
