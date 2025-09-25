@@ -1,4 +1,4 @@
-# MCP GLPI Server
+﻿# MCP GLPI Server
 
 Servidor de referencia para integrar el ecosistema Model Context Protocol (MCP) con GLPI. Proporciona herramientas de gestion de tickets y cambios listas para usar en flujos de automatizacion, junto con utilidades para validacion y soporte.
 
@@ -62,13 +62,35 @@ python -m mcp_glpi.server --verbose
 
 Para integrarlo con Claude Desktop, utilice `examples/claude_desktop_config.json` como guia. Ajuste la ruta del ejecutable y el `cwd` segun su entorno.
 
+## Empaquetado para Produccion
+1. Instalar la herramienta de build (solo la primera vez):
+   ```bash
+   python -m pip install build
+   ```
+2. Generar el paquete wheel desde la raiz del repositorio:
+   ```bash
+   python -m build --wheel
+   ```
+   Esto crea el archivo `dist/mcp_glpi-0.1.0-py3-none-any.whl` listo para distribuir.
+3. Para instalarlo en otro entorno o servidor, copiar el wheel y ejecutar:
+   ```bash
+   pip install dist/mcp_glpi-0.1.0-py3-none-any.whl
+   ```
+   Si el archivo esta en otra ubicacion, ajustar la ruta en el comando anterior.
+
 ## Depuracion y Herramientas MCP
 - **Logging detallado**: pasar `--verbose` al comando principal para habilitar nivel `DEBUG`.
 - **Inspector MCP**: pruebe las herramientas disponibles sin cliente externo usando:
   ```bash
   mcp-inspector C:/devIdeas/Repos-propios/mcp-glpi/.venv/Scripts/python.exe "src/mcp_glpi/server.py"
   ```
-  El inspector permite invocar `list_tools` y `call_tool` directamente para validar escenarios.
+El inspector permite invocar `list_tools` y `call_tool` directamente para validar escenarios.
+
+tambien puedes usar un archivo de configuracion
+```
+mcp-inspector --config .\examples\config-developer.json
+```
+
 - **Sesion GLPI**: la herramienta `validate_session` imprime los datos de la sesion activa, util para confirmar credenciales.
 
 ## Pruebas

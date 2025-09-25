@@ -1,0 +1,27 @@
+{
+	"servers": {
+		"mcp-glpi": {
+			"command": "C:/devIdeas/Repos-propios/mcp-glpi/.venv/Scripts/python.exe",
+			"args": [ "-m", "mcp_glpi.server" ],
+			"cwd": "C:/devIdeas/Repos-propios/mcp-glpi",
+			"env": {
+				"PYTHONPATH": "C:/devIdeas/Repos-propios/mcp-glpi/src",
+				"GLPI_URL": "http://grit.ideasfractal.com",
+				"GLPI_APP_TOKEN": "${input:glpi_app_token}",
+				"GLPI_USER_TOKEN": "${input:glpi_user_token}"
+			}
+		}
+	},
+	"inputs": [
+		{
+			"type": "promptString",
+			"id": "glpi_app_token",
+			"description": "GLPI Application Token"
+		},
+		{
+			"type": "promptString",
+			"id": "glpi_user_token",
+			"description": "GLPI User Token"
+		}
+	]
+}

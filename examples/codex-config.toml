@@ -1,0 +1,4 @@
+[mcp_servers.mcp-glpi]
+command = "python.exe"
+args = ["-m", "mcp_glpi.server"]
+env = { "GLPI_URL" = "http://grit.ideasfractal.com", "GLPI_APP_TOKEN" = "uNDYWQpoTpR5tG6IuixwgPQvgFWwLUIgRthODAMu", "GLPI_USER_TOKEN" = "IrdleejAfzHtusWw9mVGAXEJBk6lV5DeqyTg2MsD" }

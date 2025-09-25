@@ -1,11 +1,12 @@
 {
   "mcpServers": {
     "mcp-glpi": {
-      "command": "C:/devIdeas/Repos-propios/mcp-glpi/.venv/Scripts/python.exe",
+      "command": "python.exe",
       "args": ["-m", "mcp_glpi.server"],
-      "cwd": "C:/devIdeas/Repos-propios/mcp-glpi",
       "env": {
-        "PYTHONPATH": "C:/devIdeas/Repos-propios/mcp-glpi/src"
+        "GLPI_URL": "http://grit.ideasfractal.com",
+        "GLPI_APP_TOKEN": "",
+        "GLPI_USER_TOKEN": ""
       }
     }
   }
