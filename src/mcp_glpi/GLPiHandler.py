@@ -61,10 +61,6 @@ class CommandHandler:
             return self._update_change()
         if self.command == "update_ticket":
             return self._update_ticket()
-        if self.command == "delete_change":
-            return self._delete_change()
-        if self.command == "delete_ticket":
-            return self._delete_ticket()
         return self._text(f"Herramienta desconocida: {self.command}")
 
     def validate_session(self):
@@ -401,44 +397,6 @@ class CommandHandler:
         except Exception as exc:  # pragma: no cover - depends on remote API
             logger.exception("Error updating ticket")
             return self._text(f"Error updating ticket: {exc}")
-        return self._wrap_result(result)
-
-    def _delete_change(self):
-        change_id = self._get_from_arguments("change_id", "id", "changes_id")
-        if change_id is None:
-            return self._text("El parametro 'change_id' es obligatorio para delete_change.")
-        purge = self._get_bool_argument("purge", False)
-        keep_history = self._get_bool_argument("keep_history", True)
-        try:
-            result = glpi.changes.delete_change(
-                change_id=change_id,
-                purge=purge,
-                keep_history=keep_history,
-            )
-        except ValueError as exc:
-            return self._text(f"Invalid argument: {exc}")
-        except Exception as exc:  # pragma: no cover - depends on remote API
-            logger.exception("Error deleting change")
-            return self._text(f"Error deleting change: {exc}")
-        return self._wrap_result(result)
-
-    def _delete_ticket(self):
-        ticket_id = self._get_from_arguments("ticket_id", "id", "tickets_id")
-        if ticket_id is None:
-            return self._text("El parametro 'ticket_id' es obligatorio para delete_ticket.")
-        purge = self._get_bool_argument("purge", False)
-        keep_history = self._get_bool_argument("keep_history", True)
-        try:
-            result = glpi.tickets.delete_ticket(
-                ticket_id=ticket_id,
-                purge=purge,
-                keep_history=keep_history,
-            )
-        except ValueError as exc:
-            return self._text(f"Invalid argument: {exc}")
-        except Exception as exc:  # pragma: no cover - depends on remote API
-            logger.exception("Error deleting ticket")
-            return self._text(f"Error deleting ticket: {exc}")
         return self._wrap_result(result)
 
     def _wrap_result(self, result: Any):

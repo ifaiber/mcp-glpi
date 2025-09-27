@@ -47,8 +47,6 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 | `unlink_change_ticket` | Elimina la relacion Change_Ticket desde un cambio. |
 | `unlink_ticket_change` | Elimina la relacion Change_Ticket desde un ticket. |
 | `update_change` | Actualiza campos de un cambio. |
-| `delete_change` | Elimina un cambio. |
-| `delete_ticket` | Elimina un ticket. |
 
 > Nota: El manejador tambien implementa `update_ticket`, disponible para invocacion directa aunque no aparece en la lista de herramientas porque requiere una llamada programatica.
 

@@ -327,30 +327,6 @@ def _update_schema(
     }
 
 
-def _delete_schema(
-    item_field: str,
-    item_label: str,
-) -> dict:
-    return {
-        "type": "object",
-        "properties": {
-            item_field: {
-                "type": ["integer", "string"],
-                "description": f"Identificador del {item_label}",
-            },
-            "purge": {
-                "type": _def_bool,
-                "description": "Forzar purga del elemento",
-            },
-            "keep_history": {
-                "type": _def_bool,
-                "description": "Mantener historial de GLPI",
-            },
-        },
-        "required": [item_field],
-    }
-
-
 tools = [
     types.Tool(
         name="echo",
@@ -491,15 +467,5 @@ tools = [
         name="update_change",
         description="Actualiza campos de un cambio",
         inputSchema=_update_schema("change_id", "cambio"),
-    ),
-    types.Tool(
-        name="delete_change",
-        description="Elimina un cambio",
-        inputSchema=_delete_schema("change_id", "cambio"),
-    ),
-    types.Tool(
-        name="delete_ticket",
-        description="Elimina un ticket",
-        inputSchema=_delete_schema("ticket_id", "ticket"),
     ),
 ]
