@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import glpi.tickets as tickets
+from mcp_glpi.glpi import tickets
 
 
 def test_normalize_enum_value_accepts_label():

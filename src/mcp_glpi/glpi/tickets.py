@@ -1,4 +1,4 @@
-"""Helpers for interacting with GLPI change records."""
+"""Helpers for interacting with GLPI tickets."""
 
 from __future__ import annotations
 
@@ -8,19 +8,26 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from glpi_client import RequestHandler, ResponseRange, SortOrder
 
-from common.config import get_config
+from ..common.config import get_config
 
 config = get_config()
 logger = logging.getLogger(__name__)
 
 STATUS_LABELS = {
     1: "New",
-    2: "Assessment",
-    3: "Approval",
-    4: "Planning",
-    5: "Implementation",
-    6: "Review",
-    7: "Closed",
+    2: "Assigned",
+    3: "Planned",
+    4: "Pending",
+    5: "Solved",
+    6: "Closed",
+}
+
+PRIORITY_LABELS = {
+    1: "Very high",
+    2: "High",
+    3: "Medium",
+    4: "Low",
+    5: "Very low",
 }
 
 IMPACT_LABELS = {
@@ -35,28 +42,22 @@ URGENCY_LABELS = {
     3: "Low",
 }
 
-PRIORITY_LABELS = {
-    1: "Very high",
-    2: "High",
-    3: "Medium",
-    4: "Low",
-    5: "Very low",
-}
-
 DEFAULT_FIELDS: Sequence[str] = (
     "id",
     "name",
     "status",
-    "impact",
     "priority",
+    "impact",
     "urgency",
+    "date",
     "date_mod",
+    "closedate",
 )
 
 _ENUM_FIELDS = {
     "status": STATUS_LABELS,
-    "impact": IMPACT_LABELS,
     "priority": PRIORITY_LABELS,
+    "impact": IMPACT_LABELS,
     "urgency": URGENCY_LABELS,
 }
 
@@ -143,10 +144,10 @@ def _translate_enum(value: Any, labels: Dict[int, str]) -> Any:
         return value
 
 
-def _prepare_change(change: Dict[str, Any], fields: Sequence[str]) -> Dict[str, Any]:
+def _prepare_ticket(ticket: Dict[str, Any], fields: Sequence[str]) -> Dict[str, Any]:
     prepared: Dict[str, Any] = {}
     for field in fields:
-        value = change.get(field)
+        value = ticket.get(field)
         labels = _ENUM_FIELDS.get(field)
         if labels:
             value = _translate_enum(value, labels)
@@ -166,20 +167,20 @@ def _range_to_dict(range_: Optional[ResponseRange]) -> Optional[Dict[str, int]]:
 
 
 @dataclass
-class ChangeList:
+class TicketList:
     items: List[Dict[str, Any]]
     response_range: Optional[ResponseRange]
 
     def as_dict(self, fields: Sequence[str] = DEFAULT_FIELDS) -> Dict[str, Any]:
         return {
-            "changes": [_prepare_change(item, fields) for item in self.items],
+            "tickets": [_prepare_ticket(item, fields) for item in self.items],
             "range": _range_to_dict(self.response_range),
         }
 
     def to_table(self, fields: Sequence[str] = DEFAULT_FIELDS) -> str:
         if not self.items:
-            return "No changes found."
-        prepared = [_prepare_change(item, fields) for item in self.items]
+            return "No tickets found."
+        prepared = [_prepare_ticket(item, fields) for item in self.items]
         widths = {
             field: max(
                 len(str(field)),
@@ -201,7 +202,7 @@ class ChangeList:
 
 
 @dataclass
-class ChangeCreationResult:
+class TicketCreationResult:
     payload: Dict[str, Any]
     response: Dict[str, Any]
 
@@ -209,25 +210,25 @@ class ChangeCreationResult:
         return {"payload": self.payload, "response": self.response}
 
     def summary(self) -> str:
-        change_id: Optional[Any] = None
+        ticket_id: Optional[Any] = None
         name = self.payload.get("name")
         response_obj = self.response
         if isinstance(response_obj, dict):
-            change_id = response_obj.get("id") or response_obj.get("ID")
+            ticket_id = response_obj.get("id") or response_obj.get("ID")
             name = response_obj.get("name", name)
         elif isinstance(response_obj, list) and response_obj:
             first = response_obj[0]
             if isinstance(first, dict):
-                change_id = first.get("id") or first.get("ID")
+                ticket_id = first.get("id") or first.get("ID")
                 name = first.get("name", name)
-        change_id_str = str(change_id) if change_id is not None else "unknown"
-        return f"Change created (id={change_id_str}): {name}"
+        ticket_id_str = str(ticket_id) if ticket_id is not None else "unknown"
+        return f"Ticket created (id={ticket_id_str}): {name}"
 
 
 @dataclass
-class ChangeMutationResult:
+class TicketMutationResult:
     action: str
-    change_id: int
+    ticket_id: int
     description: str
     payload: Any
     response: Any
@@ -235,7 +236,7 @@ class ChangeMutationResult:
     def as_dict(self) -> Dict[str, Any]:
         return {
             "action": self.action,
-            "change_id": self.change_id,
+            "ticket_id": self.ticket_id,
             "description": self.description,
             "payload": self.payload,
             "response": self.response,
@@ -245,7 +246,7 @@ class ChangeMutationResult:
         return self.description
 
 
-def fetch_changes(
+def fetch_tickets(
     limit: Optional[int] = 20,
     offset: int = 0,
     sort_by: str = "date_mod",
@@ -253,7 +254,7 @@ def fetch_changes(
     filters: Optional[Dict[str, str]] = None,
     expand_dropdowns: bool = False,
     include_deleted: bool = False,
-) -> ChangeList:
+) -> TicketList:
     order_enum = SortOrder(order) if isinstance(order, str) else order
     range_tuple: Optional[Tuple[int, int]] = None
     if limit is not None and limit > 0:
@@ -261,7 +262,7 @@ def fetch_changes(
     filters_to_use = filters or None
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
         items = handler.get_many_items(
-            "Change",
+            "Ticket",
             expand_dropdowns=expand_dropdowns,
             sort_by=sort_by,
             order=order_enum,
@@ -270,10 +271,10 @@ def fetch_changes(
             is_deleted=include_deleted,
         )
         response_range = getattr(handler, "response_range", None)
-    return ChangeList(items=items, response_range=response_range)
+    return TicketList(items=items, response_range=response_range)
 
 
-def list_changes_as_table(
+def list_tickets_as_table(
     limit: Optional[int] = 20,
     offset: int = 0,
     sort_by: str = "date_mod",
@@ -283,7 +284,7 @@ def list_changes_as_table(
     include_deleted: bool = False,
     fields: Sequence[str] = DEFAULT_FIELDS,
 ) -> str:
-    change_list = fetch_changes(
+    ticket_list = fetch_tickets(
         limit=limit,
         offset=offset,
         sort_by=sort_by,
@@ -292,10 +293,10 @@ def list_changes_as_table(
         expand_dropdowns=expand_dropdowns,
         include_deleted=include_deleted,
     )
-    return change_list.to_table(fields)
+    return ticket_list.to_table(fields)
 
 
-def all_changes(
+def all_tickets(
     limit: Optional[int] = 20,
     offset: int = 0,
     sort_by: str = "date_mod",
@@ -306,9 +307,9 @@ def all_changes(
     output: str = "dict",
     fields: Optional[Sequence[str]] = None,
 ):
-    """Retrieve changes from GLPI with a configurable presentation."""
+    """Retrieve tickets from GLPI with a configurable presentation."""
 
-    change_list = fetch_changes(
+    ticket_list = fetch_tickets(
         limit=limit,
         offset=offset,
         sort_by=sort_by,
@@ -321,15 +322,15 @@ def all_changes(
     selected_fields = fields or DEFAULT_FIELDS
 
     if output == "table":
-        return change_list.to_table(selected_fields)
+        return ticket_list.to_table(selected_fields)
     if output == "raw":
-        return change_list.items
+        return ticket_list.items
 
-    return change_list.as_dict(selected_fields)
+    return ticket_list.as_dict(selected_fields)
 
 
 def _normalize_actor_entries(
-    change_id: int,
+    ticket_id: int,
     entries: Union[Dict[str, Any], Sequence[Any], Any],
     *,
     actor_id_key: str,
@@ -376,7 +377,7 @@ def _normalize_actor_entries(
                 f"Unsupported value for {entry_name[:-1]} #{index}: {entry}"
             )
 
-        current[item_id_field] = change_id
+        current[item_id_field] = ticket_id
         if "type" in current and current["type"] is not None:
             current["type"] = _ensure_int(current["type"], "type")
         for flag_key in ("use_notification", "is_dynamic", "is_manager"):
@@ -386,16 +387,16 @@ def _normalize_actor_entries(
     return normalized
 
 
-def assign_change_users(
-    change_id: Any,
+def assign_ticket_users(
+    ticket_id: Any,
     users: Union[Dict[str, Any], Sequence[Any], Any],
-) -> ChangeMutationResult:
-    change_id_int = _ensure_positive_int(change_id, "change_id")
+) -> TicketMutationResult:
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
     normalized = _normalize_actor_entries(
-        change_id_int,
+        ticket_id_int,
         users,
         actor_id_key="users_id",
-        item_id_field="changes_id",
+        item_id_field="tickets_id",
         entry_name="users",
     )
     payload_to_send: Union[Dict[str, Any], List[Dict[str, Any]]]
@@ -405,28 +406,28 @@ def assign_change_users(
         payload_to_send = normalized
 
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
-        response = handler.add_items("Change_User", payload_to_send)
+        response = handler.add_items("Ticket_User", payload_to_send)
 
-    description = f"Assigned {len(normalized)} user(s) to change {change_id_int}"
-    return ChangeMutationResult(
-        action="assign_change_users",
-        change_id=change_id_int,
+    description = f"Assigned {len(normalized)} user(s) to ticket {ticket_id_int}"
+    return TicketMutationResult(
+        action="assign_ticket_users",
+        ticket_id=ticket_id_int,
         description=description,
         payload=payload_to_send,
         response=response,
     )
 
 
-def assign_change_groups(
-    change_id: Any,
+def assign_ticket_groups(
+    ticket_id: Any,
     groups: Union[Dict[str, Any], Sequence[Any], Any],
-) -> ChangeMutationResult:
-    change_id_int = _ensure_positive_int(change_id, "change_id")
+) -> TicketMutationResult:
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
     normalized = _normalize_actor_entries(
-        change_id_int,
+        ticket_id_int,
         groups,
         actor_id_key="groups_id",
-        item_id_field="changes_id",
+        item_id_field="tickets_id",
         entry_name="groups",
     )
     payload_to_send: Union[Dict[str, Any], List[Dict[str, Any]]]
@@ -436,12 +437,12 @@ def assign_change_groups(
         payload_to_send = normalized
 
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
-        response = handler.add_items("Change_Group", payload_to_send)
+        response = handler.add_items("Group_Ticket", payload_to_send)
 
-    description = f"Assigned {len(normalized)} group(s) to change {change_id_int}"
-    return ChangeMutationResult(
-        action="assign_change_groups",
-        change_id=change_id_int,
+    description = f"Assigned {len(normalized)} group(s) to ticket {ticket_id_int}"
+    return TicketMutationResult(
+        action="assign_ticket_groups",
+        ticket_id=ticket_id_int,
         description=description,
         payload=payload_to_send,
         response=response,
@@ -449,17 +450,17 @@ def assign_change_groups(
 
 
 def add_followup(
-    change_id: Any,
+    ticket_id: Any,
     content: Any,
     *,
     is_private: bool | Any = False,
     additional_fields: Optional[Dict[str, Any]] = None,
-) -> ChangeMutationResult:
-    change_id_int = _ensure_positive_int(change_id, "change_id")
+) -> TicketMutationResult:
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
     comment = _ensure_non_empty_text(content, "content")
     payload: Dict[str, Any] = {
-        "itemtype": "Change",
-        "items_id": change_id_int,
+        "itemtype": "Ticket",
+        "items_id": ticket_id_int,
         "content": comment,
     }
     private_flag = _prepare_bool_flag(is_private)
@@ -473,10 +474,10 @@ def add_followup(
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
         response = handler.add_items("ITILFollowup", payload)
 
-    description = f"Added follow-up to change {change_id_int}"
-    return ChangeMutationResult(
-        action="add_change_comment",
-        change_id=change_id_int,
+    description = f"Added follow-up to ticket {ticket_id_int}"
+    return TicketMutationResult(
+        action="add_ticket_comment",
+        ticket_id=ticket_id_int,
         description=description,
         payload=payload,
         response=response,
@@ -484,17 +485,17 @@ def add_followup(
 
 
 def add_solution(
-    change_id: Any,
+    ticket_id: Any,
     content: Any,
     *,
     solution_type_id: Any = None,
     additional_fields: Optional[Dict[str, Any]] = None,
-) -> ChangeMutationResult:
-    change_id_int = _ensure_positive_int(change_id, "change_id")
+) -> TicketMutationResult:
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
     solution_text = _ensure_non_empty_text(content, "content")
     payload: Dict[str, Any] = {
-        "itemtype": "Change",
-        "items_id": change_id_int,
+        "itemtype": "Ticket",
+        "items_id": ticket_id_int,
         "content": solution_text,
     }
     if solution_type_id is not None:
@@ -509,17 +510,17 @@ def add_solution(
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
         response = handler.add_items("ITILSolution", payload)
 
-    description = f"Added solution to change {change_id_int}"
-    return ChangeMutationResult(
-        action="add_change_solution",
-        change_id=change_id_int,
+    description = f"Added solution to ticket {ticket_id_int}"
+    return TicketMutationResult(
+        action="add_ticket_solution",
+        ticket_id=ticket_id_int,
         description=description,
         payload=payload,
         response=response,
     )
 
 
-def create_change(
+def create_ticket(
     name: str,
     content: str = "",
     *,
@@ -530,11 +531,11 @@ def create_change(
     category_id: Optional[int] = None,
     entity_id: Optional[int] = None,
     additional_fields: Optional[Dict[str, Any]] = None,
-) -> ChangeCreationResult:
-    """Create a change in GLPI and return the payload and response."""
+) -> TicketCreationResult:
+    """Create a ticket in GLPI and return the payload and response."""
 
     if not name or not name.strip():
-        raise ValueError("name is required to create a change")
+        raise ValueError("name is required to create a ticket")
 
     payload: Dict[str, Any] = {
         "name": name.strip(),
@@ -567,26 +568,26 @@ def create_change(
             payload[key] = value
 
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
-        response = handler.create_change(**payload)
+        response = handler.create_ticket(**payload)
 
-    return ChangeCreationResult(payload=payload, response=response)
+    return TicketCreationResult(payload=payload, response=response)
 
 
 
-def link_ticket(
-    change_id: Any,
+def link_change(
     ticket_id: Any,
+    change_id: Any,
     *,
     additional_fields: Optional[Dict[str, Any]] = None,
-) -> ChangeMutationResult:
-    """Link a ticket to a change."""
+) -> TicketMutationResult:
+    """Link a change to a ticket."""
 
-    change_id_int = _ensure_positive_int(change_id, "change_id")
     ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
+    change_id_int = _ensure_positive_int(change_id, "change_id")
 
     payload: Dict[str, Any] = {
-        "changes_id": change_id_int,
         "tickets_id": ticket_id_int,
+        "changes_id": change_id_int,
     }
 
     extras = _ensure_optional_dict(additional_fields, "additional_fields")
@@ -596,26 +597,26 @@ def link_ticket(
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
         response = handler.add_items("Change_Ticket", payload)
 
-    description = f"Linked change {change_id_int} to ticket {ticket_id_int}"
-    return ChangeMutationResult(
-        action="link_change_ticket",
-        change_id=change_id_int,
+    description = f"Linked ticket {ticket_id_int} to change {change_id_int}"
+    return TicketMutationResult(
+        action="link_ticket_change",
+        ticket_id=ticket_id_int,
         description=description,
         payload=payload,
         response=response,
     )
 
 
-def unlink_ticket(
-    change_id: Any,
+def unlink_change(
+    ticket_id: Any,
     link_id: Any,
     *,
     purge: bool | Any = False,
     keep_history: bool | Any = True,
-) -> ChangeMutationResult:
-    """Remove the relation between a change and a ticket using the link identifier."""
+) -> TicketMutationResult:
+    """Remove the relation between a ticket and a change using the link identifier."""
 
-    change_id_int = _ensure_positive_int(change_id, "change_id")
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
     link_id_int = _ensure_positive_int(link_id, "link_id")
     purge_flag = bool(_prepare_bool_flag(purge))
     keep_history_flag = bool(_prepare_bool_flag(keep_history))
@@ -628,23 +629,23 @@ def unlink_ticket(
             log=keep_history_flag,
         )
 
-    description = f"Unlinked change {change_id_int} from ticket relation {link_id_int}"
-    return ChangeMutationResult(
-        action="unlink_change_ticket",
-        change_id=change_id_int,
+    description = f"Unlinked ticket {ticket_id_int} from change relation {link_id_int}"
+    return TicketMutationResult(
+        action="unlink_ticket_change",
+        ticket_id=ticket_id_int,
         description=description,
         payload={"link_id": link_id_int, "purge": purge_flag, "keep_history": keep_history_flag},
         response=response,
     )
 
 
-def update_change(
-    change_id: Any,
+def update_ticket(
+    ticket_id: Any,
     fields: Dict[str, Any],
-) -> ChangeMutationResult:
-    """Update a change with the provided fields."""
+) -> TicketMutationResult:
+    """Update a ticket with the provided fields."""
 
-    change_id_int = _ensure_positive_int(change_id, "change_id")
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
     if not isinstance(fields, dict) or not fields:
         raise ValueError("fields must be a non-empty object")
 
@@ -667,15 +668,15 @@ def update_change(
             sanitized["entities_id"], "entities_id"
         )
 
-    payload = {"id": change_id_int, **sanitized}
+    payload = {"id": ticket_id_int, **sanitized}
 
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
-        response = handler.update_items("Change", [payload])
+        response = handler.update_items("Ticket", [payload])
 
-    description = f"Updated change {change_id_int}"
-    return ChangeMutationResult(
-        action="update_change",
-        change_id=change_id_int,
+    description = f"Updated ticket {ticket_id_int}"
+    return TicketMutationResult(
+        action="update_ticket",
+        ticket_id=ticket_id_int,
         description=description,
         payload=payload,
         response=response,
@@ -683,31 +684,31 @@ def update_change(
 
 
 
-def delete_change(
-    change_id: Any,
+def delete_ticket(
+    ticket_id: Any,
     *,
     purge: bool | Any = False,
     keep_history: bool | Any = True,
-) -> ChangeMutationResult:
-    """Delete a change from GLPI."""
+) -> TicketMutationResult:
+    """Delete a ticket from GLPI."""
 
-    change_id_int = _ensure_positive_int(change_id, "change_id")
+    ticket_id_int = _ensure_positive_int(ticket_id, "ticket_id")
     purge_flag = bool(_prepare_bool_flag(purge))
     keep_history_flag = bool(_prepare_bool_flag(keep_history))
 
     with RequestHandler(config.url, config.app_token, config.user_token) as handler:
         response = handler.delete_items(
-            "Change",
-            [change_id_int],
+            "Ticket",
+            [ticket_id_int],
             purge=purge_flag,
             log=keep_history_flag,
         )
 
-    description = f"Deleted change {change_id_int}"
-    return ChangeMutationResult(
-        action="delete_change",
-        change_id=change_id_int,
+    description = f"Deleted ticket {ticket_id_int}"
+    return TicketMutationResult(
+        action="delete_ticket",
+        ticket_id=ticket_id_int,
         description=description,
-        payload={"change_id": change_id_int, "purge": purge_flag, "keep_history": keep_history_flag},
+        payload={"ticket_id": ticket_id_int, "purge": purge_flag, "keep_history": keep_history_flag},
         response=response,
     )

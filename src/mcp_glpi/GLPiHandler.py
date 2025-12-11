@@ -4,11 +4,10 @@ import logging
 from typing import Any, Callable, Dict, Optional, Sequence
 
 import mcp.types as types
-from common.config import get_config
-
-import glpi.changes
-import glpi.session
-import glpi.tickets
+from mcp_glpi.common.config import get_config
+from mcp_glpi.glpi import changes as glpi_changes
+from mcp_glpi.glpi import session as glpi_session
+from mcp_glpi.glpi import tickets as glpi_tickets
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +25,9 @@ class CommandHandler:
         if self.command == "validate_session":
             return self.validate_session()
         if self.command == "list_tickets":
-            return self._list_items(glpi.tickets.all_tickets)
+            return self._list_items(glpi_tickets.all_tickets)
         if self.command == "list_changes":
-            return self._list_items(glpi.changes.all_changes)
+            return self._list_items(glpi_changes.all_changes)
         if self.command == "create_change":
             return self._create_change()
         if self.command == "create_ticket":
@@ -64,7 +63,7 @@ class CommandHandler:
         return self._text(f"Herramienta desconocida: {self.command}")
 
     def validate_session(self):
-        session_info = glpi.session.get_full_session()
+        session_info = glpi_session.get_full_session()
         if session_info:
             return self._text(str(session_info))
         return self._text("Sesion no valida")
@@ -110,7 +109,7 @@ class CommandHandler:
         additional = self._merge_pr_links(additional)
 
         try:
-            result = glpi.changes.create_change(
+            result = glpi_changes.create_change(
                 name=name,
                 content="" if content is None else str(content),
                 status=status,
@@ -143,7 +142,7 @@ class CommandHandler:
         additional = self._normalize_additional(self.arguments.get("additional"))
 
         try:
-            result = glpi.tickets.create_ticket(
+            result = glpi_tickets.create_ticket(
                 name=name,
                 content="" if content is None else str(content),
                 status=status,
@@ -166,7 +165,7 @@ class CommandHandler:
         additional = self._normalize_additional(self.arguments.get("additional"))
         is_private = self._get_bool_argument("is_private", False)
         try:
-            result = glpi.changes.add_followup(
+            result = glpi_changes.add_followup(
                 change_id=self._get_from_arguments("change_id", "id"),
                 content=self.arguments.get("content"),
                 is_private=is_private,
@@ -183,7 +182,7 @@ class CommandHandler:
         additional = self._normalize_additional(self.arguments.get("additional"))
         solution_type_id = self._get_from_arguments("solution_type_id", "solutiontypes_id")
         try:
-            result = glpi.changes.add_solution(
+            result = glpi_changes.add_solution(
                 change_id=self._get_from_arguments("change_id", "id"),
                 content=self.arguments.get("content"),
                 solution_type_id=solution_type_id,
@@ -199,7 +198,7 @@ class CommandHandler:
     def _assign_change_users(self):
         users = self._get_collection_argument("users", ("user", "user_id", "users_id"))
         try:
-            result = glpi.changes.assign_change_users(
+            result = glpi_changes.assign_change_users(
                 change_id=self._get_from_arguments("change_id", "id"),
                 users=users,
             )
@@ -213,7 +212,7 @@ class CommandHandler:
     def _assign_change_groups(self):
         groups = self._get_collection_argument("groups", ("group", "group_id", "groups_id"))
         try:
-            result = glpi.changes.assign_change_groups(
+            result = glpi_changes.assign_change_groups(
                 change_id=self._get_from_arguments("change_id", "id"),
                 groups=groups,
             )
@@ -228,7 +227,7 @@ class CommandHandler:
         additional = self._normalize_additional(self.arguments.get("additional"))
         is_private = self._get_bool_argument("is_private", False)
         try:
-            result = glpi.tickets.add_followup(
+            result = glpi_tickets.add_followup(
                 ticket_id=self._get_from_arguments("ticket_id", "id"),
                 content=self.arguments.get("content"),
                 is_private=is_private,
@@ -245,7 +244,7 @@ class CommandHandler:
         additional = self._normalize_additional(self.arguments.get("additional"))
         solution_type_id = self._get_from_arguments("solution_type_id", "solutiontypes_id")
         try:
-            result = glpi.tickets.add_solution(
+            result = glpi_tickets.add_solution(
                 ticket_id=self._get_from_arguments("ticket_id", "id"),
                 content=self.arguments.get("content"),
                 solution_type_id=solution_type_id,
@@ -261,7 +260,7 @@ class CommandHandler:
     def _assign_ticket_users(self):
         users = self._get_collection_argument("users", ("user", "user_id", "users_id"))
         try:
-            result = glpi.tickets.assign_ticket_users(
+            result = glpi_tickets.assign_ticket_users(
                 ticket_id=self._get_from_arguments("ticket_id", "id"),
                 users=users,
             )
@@ -275,7 +274,7 @@ class CommandHandler:
     def _assign_ticket_groups(self):
         groups = self._get_collection_argument("groups", ("group", "group_id", "groups_id"))
         try:
-            result = glpi.tickets.assign_ticket_groups(
+            result = glpi_tickets.assign_ticket_groups(
                 ticket_id=self._get_from_arguments("ticket_id", "id"),
                 groups=groups,
             )
@@ -293,7 +292,7 @@ class CommandHandler:
             return self._text("Los parametros 'change_id' y 'ticket_id' son obligatorios.")
         additional = self._normalize_additional(self.arguments.get("additional"))
         try:
-            result = glpi.changes.link_ticket(
+            result = glpi_changes.link_ticket(
                 change_id=change_id,
                 ticket_id=ticket_id,
                 additional_fields=additional,
@@ -312,7 +311,7 @@ class CommandHandler:
             return self._text("Los parametros 'ticket_id' y 'change_id' son obligatorios.")
         additional = self._normalize_additional(self.arguments.get("additional"))
         try:
-            result = glpi.tickets.link_change(
+            result = glpi_tickets.link_change(
                 ticket_id=ticket_id,
                 change_id=change_id,
                 additional_fields=additional,
@@ -332,7 +331,7 @@ class CommandHandler:
         purge = self.arguments.get("purge", False)
         keep_history = self.arguments.get("keep_history", True)
         try:
-            result = glpi.changes.unlink_ticket(
+            result = glpi_changes.unlink_ticket(
                 change_id=change_id,
                 link_id=link_id,
                 purge=purge,
@@ -353,7 +352,7 @@ class CommandHandler:
         purge = self.arguments.get("purge", False)
         keep_history = self.arguments.get("keep_history", True)
         try:
-            result = glpi.tickets.unlink_change(
+            result = glpi_tickets.unlink_change(
                 ticket_id=ticket_id,
                 link_id=link_id,
                 purge=purge,
@@ -375,7 +374,7 @@ class CommandHandler:
             return self._text("El parametro 'fields' es obligatorio y debe ser un objeto JSON.")
         fields = self._merge_pr_links(fields, target_key="controlistcontent")
         try:
-            result = glpi.changes.update_change(change_id=change_id, fields=fields)
+            result = glpi_changes.update_change(change_id=change_id, fields=fields)
         except ValueError as exc:
             return self._text(f"Invalid argument: {exc}")
         except Exception as exc:  # pragma: no cover - depends on remote API
@@ -391,7 +390,7 @@ class CommandHandler:
         if fields is None:
             return self._text("El parametro 'fields' es obligatorio y debe ser un objeto JSON.")
         try:
-            result = glpi.tickets.update_ticket(ticket_id=ticket_id, fields=fields)
+            result = glpi_tickets.update_ticket(ticket_id=ticket_id, fields=fields)
         except ValueError as exc:
             return self._text(f"Invalid argument: {exc}")
         except Exception as exc:  # pragma: no cover - depends on remote API

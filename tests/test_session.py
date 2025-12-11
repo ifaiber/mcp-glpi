@@ -1,4 +1,4 @@
-import glpi.session as session
+from mcp_glpi.glpi import session
 
 
 def test_get_full_session_formats_session_details(monkeypatch):

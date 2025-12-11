@@ -1,5 +1,5 @@
 from glpi_client import RequestHandler
-from common.config import get_config
+from ..common.config import get_config
 
 config = get_config()
 

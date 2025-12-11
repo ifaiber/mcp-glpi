@@ -5,10 +5,11 @@ from pathlib import Path
 from typing import Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from dotenv import load_dotenv
 
 # Cargar archivo .env si existe
-env_path = Path(__file__).parent.parent.parent / ".env"
+env_path = Path(__file__).parent.parent.parent.parent / ".env"
 if env_path.exists():
     load_dotenv(env_path)
 

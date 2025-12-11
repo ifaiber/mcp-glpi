@@ -1,9 +1,9 @@
 import pytest
 
 from mcp_glpi.GLPiHandler import CommandHandler
-import glpi.session as glpi_session
-import glpi.tickets as glpi_tickets
-import glpi.changes as glpi_changes
+from mcp_glpi.glpi import session as glpi_session
+from mcp_glpi.glpi import tickets as glpi_tickets
+from mcp_glpi.glpi import changes as glpi_changes
 
 
 class DummyResult:

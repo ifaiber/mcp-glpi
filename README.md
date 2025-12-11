@@ -104,8 +104,8 @@ pip install -e .[dev]
 
 Las pruebas cubren:
 - `CommandHandler` para uso y validacion de argumentos.
-- Helpers de tickets y cambios (`glpi.tickets`, `glpi.changes`).
-- Formateo de sesion GLPI (`glpi.session`).
+- Helpers de tickets y cambios (`mcp_glpi.glpi.tickets`, `mcp_glpi.glpi.changes`).
+- Formateo de sesion GLPI (`mcp_glpi.glpi.session`).
 - Validacion basica de `claude_desktop_config.json` y contenido Markdown.
 
 ## Recursos Utiles

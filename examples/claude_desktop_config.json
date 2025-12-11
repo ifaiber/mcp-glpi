@@ -3,6 +3,7 @@
     "mcp-glpi": {
       "command": "python.exe",
       "args": ["-m", "mcp_glpi.server"],
+      "cwd": "C:/devIdeas/Repos-propios/mcp-glpi",
       "env": {
         "GLPI_URL": "http://grit.ideasfractal.com",
         "GLPI_APP_TOKEN": "",
