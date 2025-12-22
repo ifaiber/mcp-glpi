@@ -260,7 +260,7 @@ def fetch_tickets(
     if limit is not None and limit > 0:
         range_tuple = (offset, offset + limit - 1)
     filters_to_use = filters or None
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         items = handler.get_many_items(
             "Ticket",
             expand_dropdowns=expand_dropdowns,
@@ -405,7 +405,7 @@ def assign_ticket_users(
     else:
         payload_to_send = normalized
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.add_items("Ticket_User", payload_to_send)
 
     description = f"Assigned {len(normalized)} user(s) to ticket {ticket_id_int}"
@@ -436,7 +436,7 @@ def assign_ticket_groups(
     else:
         payload_to_send = normalized
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.add_items("Group_Ticket", payload_to_send)
 
     description = f"Assigned {len(normalized)} group(s) to ticket {ticket_id_int}"
@@ -471,7 +471,7 @@ def add_followup(
     if extras:
         payload.update({k: v for k, v in extras.items() if v is not None})
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.add_items("ITILFollowup", payload)
 
     description = f"Added follow-up to ticket {ticket_id_int}"
@@ -507,7 +507,7 @@ def add_solution(
     if extras:
         payload.update({k: v for k, v in extras.items() if v is not None})
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.add_items("ITILSolution", payload)
 
     description = f"Added solution to ticket {ticket_id_int}"
@@ -567,7 +567,7 @@ def create_ticket(
                 continue
             payload[key] = value
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.create_ticket(**payload)
 
     return TicketCreationResult(payload=payload, response=response)
@@ -594,7 +594,7 @@ def link_change(
     if extras:
         payload.update({k: v for k, v in extras.items() if v is not None})
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.add_items("Change_Ticket", payload)
 
     description = f"Linked ticket {ticket_id_int} to change {change_id_int}"
@@ -621,7 +621,7 @@ def unlink_change(
     purge_flag = bool(_prepare_bool_flag(purge))
     keep_history_flag = bool(_prepare_bool_flag(keep_history))
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.delete_items(
             "Change_Ticket",
             [link_id_int],
@@ -670,7 +670,7 @@ def update_ticket(
 
     payload = {"id": ticket_id_int, **sanitized}
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.update_items("Ticket", [payload])
 
     description = f"Updated ticket {ticket_id_int}"
@@ -696,7 +696,7 @@ def delete_ticket(
     purge_flag = bool(_prepare_bool_flag(purge))
     keep_history_flag = bool(_prepare_bool_flag(keep_history))
 
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         response = handler.delete_items(
             "Ticket",
             [ticket_id_int],

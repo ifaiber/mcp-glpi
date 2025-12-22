@@ -5,7 +5,7 @@ config = get_config()
 
 def get_full_session():
     
-    with RequestHandler(config.url, config.app_token, config.user_token) as handler:
+    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
         session = handler.get_full_session()
         session_data = {
             "sessionId": handler.session_token,
