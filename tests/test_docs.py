@@ -43,3 +43,33 @@ def test_create_and_update_change_schema_expose_pr_links():
         any_of_types = {option['type'] for option in pr_links['anyOf']}
         assert {'string', 'array'}.issubset(any_of_types)
         assert any_of_types.intersection({'null'})
+
+
+def test_published_tools_match_handler_commands():
+    import mcp_glpi.GLPITools as tools
+
+    published = {tool.name for tool in tools.tools}
+    expected = {
+        'echo',
+        'validate_session',
+        'list_tickets',
+        'list_changes',
+        'create_change',
+        'create_ticket',
+        'add_change_comment',
+        'add_change_solution',
+        'assign_change_users',
+        'assign_change_groups',
+        'add_ticket_comment',
+        'add_ticket_solution',
+        'assign_ticket_users',
+        'assign_ticket_groups',
+        'link_change_to_ticket',
+        'link_ticket_to_change',
+        'unlink_change_ticket',
+        'unlink_ticket_change',
+        'update_change',
+        'update_ticket',
+    }
+
+    assert published == expected

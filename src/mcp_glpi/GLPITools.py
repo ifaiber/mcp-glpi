@@ -468,4 +468,9 @@ tools = [
         description="Actualiza campos de un cambio",
         inputSchema=_update_schema("change_id", "cambio"),
     ),
+    types.Tool(
+        name="update_ticket",
+        description="Actualiza campos de un ticket",
+        inputSchema=_update_schema("ticket_id", "ticket"),
+    ),
 ]
