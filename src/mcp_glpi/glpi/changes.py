@@ -61,6 +61,10 @@ _ENUM_FIELDS = {
 }
 
 
+def _open_handler():
+    return RequestHandler(config.url, config.app_token, config.user_token, False)
+
+
 def _normalize_label_key(value: str) -> str:
     return "".join(ch for ch in value.lower() if ch.isalnum())
 
@@ -259,7 +263,7 @@ def fetch_changes(
     if limit is not None and limit > 0:
         range_tuple = (offset, offset + limit - 1)
     filters_to_use = filters or None
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         items = handler.get_many_items(
             "Change",
             expand_dropdowns=expand_dropdowns,
@@ -404,7 +408,7 @@ def assign_change_users(
     else:
         payload_to_send = normalized
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.add_items("Change_User", payload_to_send)
 
     description = f"Assigned {len(normalized)} user(s) to change {change_id_int}"
@@ -435,7 +439,7 @@ def assign_change_groups(
     else:
         payload_to_send = normalized
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.add_items("Change_Group", payload_to_send)
 
     description = f"Assigned {len(normalized)} group(s) to change {change_id_int}"
@@ -470,7 +474,7 @@ def add_followup(
     if extras:
         payload.update({k: v for k, v in extras.items() if v is not None})
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.add_items("ITILFollowup", payload)
 
     description = f"Added follow-up to change {change_id_int}"
@@ -506,7 +510,7 @@ def add_solution(
     if extras:
         payload.update({k: v for k, v in extras.items() if v is not None})
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.add_items("ITILSolution", payload)
 
     description = f"Added solution to change {change_id_int}"
@@ -566,7 +570,7 @@ def create_change(
                 continue
             payload[key] = value
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.create_change(**payload)
 
     return ChangeCreationResult(payload=payload, response=response)
@@ -593,7 +597,7 @@ def link_ticket(
     if extras:
         payload.update({k: v for k, v in extras.items() if v is not None})
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.add_items("Change_Ticket", payload)
 
     description = f"Linked change {change_id_int} to ticket {ticket_id_int}"
@@ -620,7 +624,7 @@ def unlink_ticket(
     purge_flag = bool(_prepare_bool_flag(purge))
     keep_history_flag = bool(_prepare_bool_flag(keep_history))
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.delete_items(
             "Change_Ticket",
             [link_id_int],
@@ -669,7 +673,7 @@ def update_change(
 
     payload = {"id": change_id_int, **sanitized}
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.update_items("Change", [payload])
 
     description = f"Updated change {change_id_int}"
@@ -695,7 +699,7 @@ def delete_change(
     purge_flag = bool(_prepare_bool_flag(purge))
     keep_history_flag = bool(_prepare_bool_flag(keep_history))
 
-    with RequestHandler(config.url, config.app_token, config.user_token, False) as handler:
+    with _open_handler() as handler:
         response = handler.delete_items(
             "Change",
             [change_id_int],

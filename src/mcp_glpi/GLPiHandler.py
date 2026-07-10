@@ -19,48 +19,36 @@ class CommandHandler:
         self.config = get_config()
 
     def execute(self):
-        if self.command == "echo":
-            message = self.arguments.get("message", "No message provided")
-            return self._text(f"Echo: {message}")
-        if self.command == "validate_session":
-            return self.validate_session()
-        if self.command == "list_tickets":
-            return self._list_items(glpi_tickets.all_tickets)
-        if self.command == "list_changes":
-            return self._list_items(glpi_changes.all_changes)
-        if self.command == "create_change":
-            return self._create_change()
-        if self.command == "create_ticket":
-            return self._create_ticket()
-        if self.command == "add_change_comment":
-            return self._add_change_comment()
-        if self.command == "add_change_solution":
-            return self._add_change_solution()
-        if self.command == "assign_change_users":
-            return self._assign_change_users()
-        if self.command == "assign_change_groups":
-            return self._assign_change_groups()
-        if self.command == "add_ticket_comment":
-            return self._add_ticket_comment()
-        if self.command == "add_ticket_solution":
-            return self._add_ticket_solution()
-        if self.command == "assign_ticket_users":
-            return self._assign_ticket_users()
-        if self.command == "assign_ticket_groups":
-            return self._assign_ticket_groups()
-        if self.command == "link_change_to_ticket":
-            return self._link_change_to_ticket()
-        if self.command == "link_ticket_to_change":
-            return self._link_ticket_to_change()
-        if self.command == "unlink_change_ticket":
-            return self._unlink_change_ticket()
-        if self.command == "unlink_ticket_change":
-            return self._unlink_ticket_change()
-        if self.command == "update_change":
-            return self._update_change()
-        if self.command == "update_ticket":
-            return self._update_ticket()
+        handlers = {
+            "echo": self._echo,
+            "validate_session": self.validate_session,
+            "list_tickets": lambda: self._list_items(glpi_tickets.all_tickets),
+            "list_changes": lambda: self._list_items(glpi_changes.all_changes),
+            "create_change": self._create_change,
+            "create_ticket": self._create_ticket,
+            "add_change_comment": self._add_change_comment,
+            "add_change_solution": self._add_change_solution,
+            "assign_change_users": self._assign_change_users,
+            "assign_change_groups": self._assign_change_groups,
+            "add_ticket_comment": self._add_ticket_comment,
+            "add_ticket_solution": self._add_ticket_solution,
+            "assign_ticket_users": self._assign_ticket_users,
+            "assign_ticket_groups": self._assign_ticket_groups,
+            "link_change_to_ticket": self._link_change_to_ticket,
+            "link_ticket_to_change": self._link_ticket_to_change,
+            "unlink_change_ticket": self._unlink_change_ticket,
+            "unlink_ticket_change": self._unlink_ticket_change,
+            "update_change": self._update_change,
+            "update_ticket": self._update_ticket,
+        }
+        handler = handlers.get(self.command)
+        if handler is not None:
+            return handler()
         return self._text(f"Herramienta desconocida: {self.command}")
+
+    def _echo(self):
+        message = self.arguments.get("message", "No message provided")
+        return self._text(f"Echo: {message}")
 
     def validate_session(self):
         session_info = glpi_session.get_full_session()

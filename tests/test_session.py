@@ -3,7 +3,7 @@ from mcp_glpi.glpi import session
 
 def test_get_full_session_formats_session_details(monkeypatch):
     class DummyHandler:
-        def __init__(self, url, app_token, user_token):
+        def __init__(self, url, app_token, user_token, verify_tls):
             self.session_token = 'abcdef123456'
 
         def __enter__(self):

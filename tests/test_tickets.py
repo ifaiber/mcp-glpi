@@ -41,8 +41,8 @@ def test_create_ticket_builds_expected_payload(monkeypatch):
     captured = {}
 
     class DummyHandler:
-        def __init__(self, url, app_token, user_token):
-            captured['auth'] = (url, app_token, user_token)
+        def __init__(self, url, app_token, user_token, verify_tls):
+            captured['auth'] = (url, app_token, user_token, verify_tls)
 
         def __enter__(self):
             return self

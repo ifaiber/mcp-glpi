@@ -140,3 +140,5 @@ cython_debug/
 
 # MCP specific
 *.mcp
+
+config-developer.local.json
