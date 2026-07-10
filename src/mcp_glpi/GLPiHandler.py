@@ -52,6 +52,12 @@ class CommandHandler:
             return self._success(session_info)
         return self._error("Sesion no valida", error_type="invalid_session")
 
+    def _my_profiles(self):
+        return self._run_operation(
+            "Error retrieving my profiles",
+            lambda: self._success(glpi_session.get_my_profiles_data()),
+        )
+
     def _list_tickets(self):
         return self._list_items(glpi_tickets.all_tickets)
 

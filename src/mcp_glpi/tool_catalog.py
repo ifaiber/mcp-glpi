@@ -353,6 +353,12 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="validate_session",
     ),
     ToolSpec(
+        name="my_profiles",
+        description="Lista los perfiles del usuario logueado y las entidades asociadas",
+        input_schema={"type": "object", "properties": {}, "required": []},
+        handler_name="_my_profiles",
+    ),
+    ToolSpec(
         name="list_tickets",
         description="Lista tickets de GLPI con opciones de filtrado basicas; responde JSON por defecto",
         input_schema=_listing_schema("Parametros para listar tickets usando glpi_client"),

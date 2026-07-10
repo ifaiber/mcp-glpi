@@ -57,6 +57,21 @@ def test_validate_session_uses_session_module(monkeypatch):
     }
 
 
+def test_my_profiles_uses_session_module(monkeypatch):
+    monkeypatch.setattr(
+        glpi_session,
+        'get_my_profiles_data',
+        lambda: [],
+    )
+    response = CommandHandler('my_profiles', {}).execute()
+    payload = _extract_json(response)
+    assert payload == {
+        'ok': True,
+        'command': 'my_profiles',
+        'data': [],
+    }
+
+
 def test_list_tickets_normalises_arguments(monkeypatch):
     captured = {}
 
