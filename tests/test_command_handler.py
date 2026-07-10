@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from mcp_glpi.GLPiHandler import CommandHandler
@@ -18,27 +20,41 @@ class DummyResult:
         return self._payload
 
 
-def _extract_text(response):
+def _extract_json(response):
     assert response
     content = response[0]
     assert content.type == 'text'
-    return content.text
+    return json.loads(content.text)
 
 
 def test_echo_command_returns_expected_text():
     response = CommandHandler('echo', {'message': 'hola'}).execute()
-    assert _extract_text(response) == 'Echo: hola'
+    payload = _extract_json(response)
+    assert payload == {
+        'ok': True,
+        'command': 'echo',
+        'data': {'message': 'hola'},
+    }
 
 
 def test_unknown_command_returns_friendly_message():
     response = CommandHandler('nope').execute()
-    assert _extract_text(response) == 'Herramienta desconocida: nope'
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['command'] == 'nope'
+    assert payload['error']['type'] == 'unknown_command'
+    assert payload['error']['message'] == 'Herramienta desconocida: nope'
 
 
 def test_validate_session_uses_session_module(monkeypatch):
-    monkeypatch.setattr(glpi_session, 'get_full_session', lambda: 'OK')
+    monkeypatch.setattr(glpi_session, 'get_full_session_data', lambda: {'status': 'OK'})
     response = CommandHandler('validate_session').execute()
-    assert _extract_text(response) == 'OK'
+    payload = _extract_json(response)
+    assert payload == {
+        'ok': True,
+        'command': 'validate_session',
+        'data': {'status': 'OK'},
+    }
 
 
 def test_list_tickets_normalises_arguments(monkeypatch):
@@ -61,13 +77,37 @@ def test_list_tickets_normalises_arguments(monkeypatch):
         },
     ).execute()
 
-    text = _extract_text(response)
-    assert text == "[{'id': 1}]"
+    payload = _extract_json(response)
+    assert payload == {
+        'ok': True,
+        'command': 'list_tickets',
+        'data': [{'id': 1}],
+    }
     assert captured['limit'] == 5
     assert captured['offset'] == 2
     assert captured['expand_dropdowns'] is True
     assert captured['include_deleted'] is True
     assert captured['filters'] == {'status': 'open'}
+
+
+def test_list_tickets_defaults_to_dict_output(monkeypatch):
+    captured = {}
+
+    def fake_all_tickets(**kwargs):
+        captured.update(kwargs)
+        return {'tickets': [{'id': 1}], 'range': None}
+
+    monkeypatch.setattr(glpi_tickets, 'all_tickets', fake_all_tickets)
+
+    response = CommandHandler('list_tickets', {}).execute()
+
+    payload = _extract_json(response)
+    assert payload == {
+        'ok': True,
+        'command': 'list_tickets',
+        'data': {'tickets': [{'id': 1}], 'range': None},
+    }
+    assert captured['output'] == 'dict'
 
 
 def test_create_ticket_wraps_result_with_summary(monkeypatch):
@@ -88,9 +128,11 @@ def test_create_ticket_wraps_result_with_summary(monkeypatch):
         },
     ).execute()
 
-    text = _extract_text(response)
-    assert 'Ticket created' in text
-    assert '"foo": "bar"' in text
+    payload = _extract_json(response)
+    assert payload['ok'] is True
+    assert payload['command'] == 'create_ticket'
+    assert payload['summary'] == 'Ticket created (id=99): Demo'
+    assert payload['data']['payload']['additional_fields']['foo'] == 'bar'
     assert captured['name'] == 'Demo'
     assert captured['content'] == 'desc'
 
@@ -102,7 +144,10 @@ def test_create_ticket_value_error_is_reported(monkeypatch):
     monkeypatch.setattr(glpi_tickets, 'create_ticket', failing_create_ticket)
 
     response = CommandHandler('create_ticket', {'name': 'Demo'}).execute()
-    assert _extract_text(response) == 'Invalid argument: boom'
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+    assert payload['error']['message'] == 'Invalid argument: boom'
 
 
 def test_create_change_merges_pr_links(monkeypatch):
@@ -130,8 +175,9 @@ def test_create_change_merges_pr_links(monkeypatch):
         },
     ).execute()
 
-    text = _extract_text(response)
-    assert 'Change created' in text
+    payload = _extract_json(response)
+    assert payload['ok'] is True
+    assert payload['summary'] == 'Change created (id=77): Demo'
     additional_fields = captured['additional_fields']
     assert additional_fields['other'] == 'value'
     assert additional_fields['controlistcontent'] == (
@@ -158,8 +204,9 @@ def test_update_change_merges_pr_links(monkeypatch):
         },
     ).execute()
 
-    text = _extract_text(response)
-    assert 'Change updated' in text
+    payload = _extract_json(response)
+    assert payload['ok'] is True
+    assert payload['summary'] == 'Change updated'
     assert captured['change_id'] == 55
     merged_fields = captured['fields']
     assert merged_fields is not original_fields

@@ -26,7 +26,7 @@ _listing_properties = {
     "output": {
         "type": "string",
         "enum": ["table", "dict", "raw"],
-        "description": "Formato de la respuesta",
+        "description": "Formato de la respuesta; por defecto 'dict' para JSON",
     },
     "fields": {
         "type": "array",
@@ -353,14 +353,14 @@ tools = [
     ),
     types.Tool(
         name="list_tickets",
-        description="Lista tickets de GLPI con opciones de filtrado basicas",
+        description="Lista tickets de GLPI con opciones de filtrado basicas; responde JSON por defecto",
         inputSchema=_listing_schema(
             "Parametros para listar tickets usando glpi_client",
         ),
     ),
     types.Tool(
         name="list_changes",
-        description="Lista cambios de GLPI con opciones de filtrado basicas",
+        description="Lista cambios de GLPI con opciones de filtrado basicas; responde JSON por defecto",
         inputSchema=_listing_schema(
             "Parametros para listar cambios usando glpi_client",
         ),
