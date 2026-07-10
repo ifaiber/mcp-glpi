@@ -47,29 +47,19 @@ def test_create_and_update_change_schema_expose_pr_links():
 
 def test_published_tools_match_handler_commands():
     import mcp_glpi.GLPITools as tools
+    from mcp_glpi.GLPiHandler import COMMAND_HANDLERS
+    from mcp_glpi.tool_catalog import TOOL_SPECS
 
     published = {tool.name for tool in tools.tools}
-    expected = {
-        'echo',
-        'validate_session',
-        'list_tickets',
-        'list_changes',
-        'create_change',
-        'create_ticket',
-        'add_change_comment',
-        'add_change_solution',
-        'assign_change_users',
-        'assign_change_groups',
-        'add_ticket_comment',
-        'add_ticket_solution',
-        'assign_ticket_users',
-        'assign_ticket_groups',
-        'link_change_to_ticket',
-        'link_ticket_to_change',
-        'unlink_change_ticket',
-        'unlink_ticket_change',
-        'update_change',
-        'update_ticket',
-    }
+    catalog_names = {spec.name for spec in TOOL_SPECS}
 
-    assert published == expected
+    assert published == catalog_names
+    assert published == set(COMMAND_HANDLERS)
+
+
+def test_tool_catalog_handlers_exist():
+    from mcp_glpi.GLPiHandler import CommandHandler
+    from mcp_glpi.tool_catalog import TOOL_SPECS
+
+    for spec in TOOL_SPECS:
+        assert hasattr(CommandHandler, spec.handler_name), spec.handler_name

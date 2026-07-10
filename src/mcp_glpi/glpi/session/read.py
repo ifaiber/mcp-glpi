@@ -1,21 +1,12 @@
-"""Helpers for GLPI session inspection."""
+"""Session read operations."""
 
 from typing import Any, Dict
 
-from glpi_client import RequestHandler
-
-from ..common.config import get_config
-
-
-def _open_handler():
-    config = get_config()
-    return RequestHandler(config.url, config.app_token, config.user_token, False)
+from .common import open_handler
 
 
 def get_full_session_data() -> Dict[str, Any]:
-    """Return structured details of the active GLPI session."""
-
-    with _open_handler() as handler:
+    with open_handler() as handler:
         session = handler.get_full_session()
         session_id = getattr(handler, "session_token", "") or None
         return {
@@ -31,8 +22,6 @@ def get_full_session_data() -> Dict[str, Any]:
 
 
 def get_full_session() -> str:
-    """Return a readable summary of the active GLPI session."""
-
     session_data = get_full_session_data()
     session_id = session_data.get("session_token") or "N/A"
     user = session_data.get("user", {})
