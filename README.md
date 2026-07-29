@@ -1,11 +1,13 @@
 ﻿# MCP GLPI Server
 
-Servidor de referencia para integrar el ecosistema Model Context Protocol (MCP) con GLPI. Proporciona herramientas de gestion de tickets y cambios listas para usar en flujos de automatizacion, junto con utilidades para validacion y soporte.
+Servidor de referencia para integrar el ecosistema Model Context Protocol (MCP) con GLPI. Proporciona herramientas de gestion de tickets, cambios y sesion listas para usar en flujos de automatizacion, junto con utilidades para validacion y soporte.
 
 ## Caracteristicas
 - Implementacion MCP sobre stdio lista para Claude Desktop y otros clientes compatibles.
-- Coleccion de herramientas GLPI para listar, crear, actualizar y relacionar tickets y cambios.
+- Coleccion de herramientas GLPI para listar, crear, actualizar y relacionar tickets y cambios, ademas de operaciones de sesion del usuario logueado.
 - Validacion de configuracion impulsada por Pydantic y uso de variables de entorno con `.env`.
+- Respuestas normalizadas en JSON para facilitar integracion con clientes MCP y automatizaciones.
+- Organizacion modular por paquetes (`tickets/`, `changes/`, `session/`) para extender nuevas funcionalidades con menor acoplamiento.
 - Suite de pruebas unitarias (`pytest`) que cubre el manejador de comandos, los helpers GLPI y la documentacion del repositorio.
 
 ## Instalacion
@@ -24,31 +26,87 @@ Servidor de referencia para integrar el ecosistema Model Context Protocol (MCP) 
    - Alternativamente, crear un archivo `.env` en la raiz del proyecto con esos valores.
 
 ## Herramientas Disponibles
-Las herramientas expuestas por `GLPITools` se registran automaticamente en el servidor MCP:
+Las herramientas expuestas por `GLPITools` se registran automaticamente en el servidor MCP. Los nombres siguen la convencion `elemento_funcion` / `elemento_subelemento_funcion` (ver detalle y motivacion en la nota de documentacion `Documentacion MCP-GLPI.md`):
 
 | Herramienta | Descripcion breve |
 |-------------|-------------------|
 | `echo` | Devuelve el texto recibido, util para pruebas de conectividad. |
-| `validate_session` | Muestra informacion de la sesion GLPI activa. |
-| `list_tickets` | Lista tickets con filtros, paginacion y distintos formatos. |
-| `list_changes` | Lista cambios con filtros, paginacion y distintos formatos. |
-| `create_ticket` | Crea un ticket; soporta campos adicionales. |
-| `create_change` | Crea un cambio; soporta campos adicionales. |
-| `add_ticket_comment` | Agrega un seguimiento a un ticket. |
-| `add_ticket_solution` | Registra una solucion de ticket. |
-| `assign_ticket_users` | Asigna usuarios a un ticket. |
-| `assign_ticket_groups` | Asigna grupos a un ticket. |
-| `add_change_comment` | Agrega un seguimiento a un cambio. |
-| `add_change_solution` | Registra una solucion de cambio. |
-| `assign_change_users` | Asigna usuarios a un cambio. |
-| `assign_change_groups` | Asigna grupos a un cambio. |
-| `link_change_to_ticket` | Vincula un ticket existente a un cambio. |
-| `link_ticket_to_change` | Vincula un cambio existente a un ticket. |
-| `unlink_change_ticket` | Elimina la relacion Change_Ticket desde un cambio. |
-| `unlink_ticket_change` | Elimina la relacion Change_Ticket desde un ticket. |
-| `update_change` | Actualiza campos de un cambio. |
+| `session_validate` | Muestra informacion de la sesion GLPI activa. |
+| `profile_list` | Lista los perfiles del usuario logueado y las entidades asociadas. |
+| `profile_switch` | Cambia el perfil activo de la sesion indicando su codigo (id). |
+| `entity_list` | Lista las entidades GLPI disponibles para el usuario logueado (id, nombre). |
+| `entity_switch` | Cambia la entidad activa de la sesion indicando su codigo (id). |
+| `ticket_list` | Lista tickets con filtros, paginacion y distintos formatos. |
+| `change_list` | Lista cambios con filtros, paginacion y distintos formatos. |
+| `ticket_add` | Crea un ticket; soporta campos adicionales. |
+| `change_add` | Crea un cambio; soporta campos adicionales. |
+| `ticket_follow_add` | Agrega un comentario (seguimiento) a un ticket. |
+| `ticket_follow_list` | Lista los comentarios (seguimientos, ITILFollowup) de un ticket. |
+| `ticket_solution_add` | Registra una solucion de ticket. |
+| `ticket_solution_list` | Lista las soluciones (ITILSolution) de un ticket. |
+| `ticket_user_assign` | Asigna usuarios a un ticket. |
+| `ticket_group_assign` | Asigna grupos a un ticket. |
+| `change_follow_add` | Agrega un comentario (seguimiento) a un cambio. |
+| `change_follow_list` | Lista los comentarios (seguimientos, ITILFollowup) de un cambio. |
+| `change_solution_add` | Registra una solucion de cambio. |
+| `change_solution_list` | Lista las soluciones (ITILSolution) de un cambio. |
+| `change_user_assign` | Asigna usuarios a un cambio. |
+| `change_group_assign` | Asigna grupos a un cambio. |
+| `change_ticket_link` | Vincula un ticket existente a un cambio. |
+| `ticket_change_link` | Vincula un cambio existente a un ticket. |
+| `change_ticket_unlink` | Elimina la relacion Change_Ticket desde un cambio. |
+| `ticket_change_unlink` | Elimina la relacion Change_Ticket desde un ticket. |
+| `change_update` | Actualiza campos de un cambio. |
+| `ticket_update` | Actualiza campos de un ticket. |
+| `ticket_delete` | Elimina un ticket (papelera o purga definitiva). |
+| `change_delete` | Elimina un cambio (papelera o purga definitiva). |
+| `item_type_list` | Lista los itemtypes de GLPI soportados por `item_list`/`item_get`/`item_subitem_list`. |
+| `item_subtype_list` | Lista los subtypes soportados por `item_subitem_list` (opcionalmente filtrados por itemtype). |
+| `item_list` | Acceso generico de solo lectura: lista elementos de un itemtype soportado. |
+| `item_get` | Acceso generico de solo lectura a un elemento puntual (por id) de un itemtype soportado. |
+| `item_subitem_list` | Acceso generico de solo lectura a los sub-items de un elemento (itemtype/id/subtype soportados). |
 
-> Nota: El manejador tambien implementa `update_ticket`, disponible para invocacion directa aunque no aparece en la lista de herramientas porque requiere una llamada programatica.
+`ticket_follow_list`/`change_follow_list` y `ticket_solution_list`/`change_solution_list` listan los sub-items (`ITILFollowup`/`ITILSolution`) de un ticket o cambio puntual. Aceptan `ticket_id`/`change_id` (obligatorio), `limit`, `offset`, `sort_by`, `order`, `output` (`dict`/`table`/`raw`), `fields`, y los mismos `entity_id`/`profile_id` opcionales descritos abajo. No soportan `filters`/`expand_dropdowns`/`include_deleted` porque la API de sub-items de GLPI no los expone.
+
+### Acceso generico (`item_list` / `item_get` / `item_subitem_list`)
+
+Ademas de las herramientas especificas, hay tres herramientas de acceso **generico y de solo lectura** a cualquier itemtype/subtype **soportado**, sin necesidad de una tool nueva por combinacion:
+
+- `item_list(itemtype, ...)`: lista elementos del itemtype (equivalente a `GET /{itemtype}`), con `limit`/`offset`/`sort_by`/`order`/`filters`/`output`/`fields`. No lleva `id`.
+- `item_get(itemtype, id, ...)`: obtiene un elemento puntual por id (`GET /{itemtype}/{id}`), con `fields`/`expand_dropdowns`. `id` es obligatorio.
+- `item_subitem_list(itemtype, id, subtype, ...)`: lista sub-items de un elemento (`GET /{itemtype}/{id}/{subtype}`).
+- `item_type_list` / `item_subtype_list`: devuelven los itemtypes/subtypes soportados, cada uno con una breve descripcion, para saber que valores son validos antes de llamar a las anteriores.
+
+Los itemtypes/subtypes soportados son una **lista blanca deliberada** (hoy: `Ticket`, `Change`, y sus sub-recursos ya cubiertos por las herramientas especificas — `ITILFollowup`, `ITILSolution`, `Ticket_User`, `Group_Ticket`, `Change_User`, `Change_Group`, `Change_Ticket`). Un `itemtype`/`subtype` fuera de esa lista (por ejemplo `User`, `Config`, `Computer`) devuelve un error de validacion en vez de ejecutarse — este servidor no expone datos de GLPI mas alla de tickets/cambios y sus relaciones, ni siquiera a traves de la ruta generica.
+
+Todas las herramientas que operan sobre un ticket o cambio (creacion, listados, comentarios, soluciones, asignaciones, enlaces, actualizacion y borrado) aceptan dos parametros opcionales:
+
+- `entity_id`: cambia la entidad activa de la sesion GLPI (via `changeActiveEntities`) antes de ejecutar la operacion. El codigo `0` (entidad raiz de GLPI) es un valor valido. Use `entity_list` para consultar los codigos disponibles.
+- `profile_id`: cambia el perfil activo de la sesion GLPI (via `changeActiveProfile`) antes de ejecutar la operacion. Use `profile_list` para consultar los codigos disponibles.
+
+Si se omiten (o llegan vacios/`null`), se usan el perfil/entidad activos por defecto de la sesion sin fallar. Cuando se indican ambos en la misma llamada, **el perfil se cambia primero** y luego la entidad: **el perfil activo determina los permisos (crear/leer/editar) con los que se ejecuta la operacion; la entidad activa solo determina sobre que registros se opera**. En GLPI, las entidades a las que un usuario tiene acceso estan asociadas a sus perfiles (ver la respuesta de `profile_list`) — para operar correctamente sobre una entidad que pertenece a un perfil distinto al activo, pase tambien `profile_id`.
+
+Como cada llamada MCP abre y cierra su propia sesion GLPI, el cambio de entidad/perfil aplica solo a esa llamada puntual; no persiste para llamadas posteriores.
+
+**Importante**: GLPI responde `HTTP 200` con cuerpo `false` (no un error HTTP) cuando la entidad o el perfil indicados no son accesibles para el usuario/token, o no existen. `entity_switch` y `profile_switch` detectan este caso y devuelven un error explicito en vez de fallar en silencio; si obtenes ese error, revisa que el `entity_id`/`profile_id` este entre los que devuelve `entity_list`/`profile_list`.
+
+Las herramientas responden en JSON serializado dentro de `TextContent`. Por ejemplo, `profile_list` devuelve una lista simplificada de perfiles:
+
+```json
+[
+  {
+    "id": 22,
+    "name": "Administrativo - Solicitante",
+    "entities": [
+      {
+        "id": 2,
+        "name": "Administrativo",
+        "is_recursive": true
+      }
+    ]
+  }
+]
+```
 
 ## Ejecucion del Servidor
 Ejecutar en modo CLI:
@@ -69,10 +127,10 @@ Para integrarlo con Claude Desktop, utilice `examples/claude_desktop_config.json
    ```bash
    python -m build --wheel
    ```
-   Esto crea el archivo `dist/mcp_glpi-0.1.0-py3-none-any.whl` listo para distribuir.
+   Esto crea el archivo `dist/mcp_glpi-3.0.0-py3-none-any.whl` listo para distribuir.
 3. Para instalarlo en otro entorno o servidor, copiar el wheel y ejecutar:
    ```bash
-   pip install dist/mcp_glpi-0.1.0-py3-none-any.whl
+   pip install dist/mcp_glpi-3.0.0-py3-none-any.whl
    ```
    Si el archivo esta en otra ubicacion, ajustar la ruta en el comando anterior.
 
@@ -89,7 +147,7 @@ tambien puedes usar un archivo de configuracion
 mcp-inspector --config .\examples\config-developer.json
 ```
 
-- **Sesion GLPI**: la herramienta `validate_session` imprime los datos de la sesion activa, util para confirmar credenciales.
+- **Sesion GLPI**: las herramientas `session_validate`, `profile_list` y `entity_list` permiten validar credenciales y consultar el contexto disponible del usuario autenticado; `profile_switch` y `entity_switch` permiten validar y cambiar el perfil/entidad activos.
 
 ## Pruebas
 La suite se ejecuta con `pytest` y esta localizada en `tests/`.
@@ -104,13 +162,20 @@ pip install -e .[dev]
 
 Las pruebas cubren:
 - `CommandHandler` para uso y validacion de argumentos.
-- Helpers de tickets y cambios (`mcp_glpi.glpi.tickets`, `mcp_glpi.glpi.changes`).
-- Formateo de sesion GLPI (`mcp_glpi.glpi.session`).
+- Helpers de tickets, cambios y sesion (`mcp_glpi.glpi.tickets`, `mcp_glpi.glpi.changes`, `mcp_glpi.glpi.session`).
 - Validacion basica de `claude_desktop_config.json` y contenido Markdown.
+
+## Estructura Interna
+La capa GLPI fue separada por dominio y responsabilidad:
+
+- `src/mcp_glpi/glpi/tickets/`: lectura, creacion, actualizacion, comentarios (agregar/listar), soluciones (agregar/listar), asignaciones, enlaces y borrado.
+- `src/mcp_glpi/glpi/changes/`: lectura, creacion, actualizacion, comentarios (agregar/listar), soluciones (agregar/listar), asignaciones, enlaces y borrado.
+- `src/mcp_glpi/glpi/session/`: lectura de sesion, perfiles (listado y cambio de perfil activo) y entidades (listado y cambio de entidad activa) del usuario logueado.
+- `src/mcp_glpi/glpi/generic.py`: acceso generico de solo lectura a itemtypes/subtypes soportados (`ITEMTYPE_CATALOG`, la lista blanca), detras de `item_list`/`item_get`/`item_subitem_list`/`item_type_list`/`item_subtype_list`.
+- `src/mcp_glpi/glpi/shared.py`: helpers comunes reutilizados por las entidades GLPI, incluyendo `fetch_paginated_items`/`fetch_paginated_subitems` (paginacion, apertura de sesion, cambio de entidad/perfil) y `EntityList.respond()` (dispatch de `output`/`fields`) que comparten `ticket_list`/`change_list`, los listados de seguimientos/soluciones, e `item_list`/`item_subitem_list`.
 
 ## Recursos Utiles
 - Archivo de configuracion: `examples/claude_desktop_config.json`.
-- Script de ejemplo funcional: `examples/functional_test.py`.
-- Variables de entorno soportadas: consulte `src/common/config.py`.
+- Variables de entorno soportadas: consulte `src/mcp_glpi/common/config.py`.
 
 ¡Feliz automatizacion con MCP + GLPI!

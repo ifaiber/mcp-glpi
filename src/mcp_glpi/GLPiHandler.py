@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional, Sequence
 import mcp.types as types
 from mcp_glpi.common.config import get_config
 from mcp_glpi.glpi import changes as glpi_changes
+from mcp_glpi.glpi import generic as glpi_generic
 from mcp_glpi.glpi import session as glpi_session
 from mcp_glpi.glpi import tickets as glpi_tickets
 from mcp_glpi.tool_catalog import TOOL_SPECS
@@ -46,22 +47,58 @@ class CommandHandler:
         message = self.arguments.get("message", "No message provided")
         return self._success({"message": message})
 
-    def validate_session(self):
+    def _session_validate(self):
         session_info = glpi_session.get_full_session_data()
         if session_info:
             return self._success(session_info)
         return self._error("Sesion no valida", error_type="invalid_session")
 
-    def _my_profiles(self):
+    def _profile_list(self):
         return self._run_operation(
             "Error retrieving my profiles",
             lambda: self._success(glpi_session.get_my_profiles_data()),
         )
 
-    def _list_tickets(self):
+    def _profile_switch(self):
+        profile_id = self._get_profile_id()
+        if profile_id is None:
+            return self._error(
+                "El parametro 'profile_id' es obligatorio para profile_switch.",
+                error_type="validation_error",
+            )
+        return self._run_operation(
+            "Error changing active profile",
+            lambda: self._success(glpi_session.change_active_profile_data(profile_id)),
+        )
+
+    def _entity_list(self):
+        recursive = self._get_bool_argument("recursive", False)
+        return self._run_operation(
+            "Error retrieving my entities",
+            lambda: self._success(glpi_session.get_my_entities_data(recursive=recursive)),
+        )
+
+    def _entity_switch(self):
+        entity_id = self._get_entity_id()
+        if entity_id is None:
+            return self._error(
+                "El parametro 'entity_id' es obligatorio para entity_switch.",
+                error_type="validation_error",
+            )
+        recursive = self.arguments.get("recursive")
+        if recursive is not None:
+            recursive = self._get_bool_argument("recursive", False)
+        return self._run_operation(
+            "Error changing active entity",
+            lambda: self._success(
+                glpi_session.change_active_entity_data(entity_id, recursive=recursive)
+            ),
+        )
+
+    def _ticket_list(self):
         return self._list_items(glpi_tickets.all_tickets)
 
-    def _list_changes(self):
+    def _change_list(self):
         return self._list_items(glpi_changes.all_changes)
 
     def _list_items(self, fetcher: Callable[..., Any]):
@@ -74,6 +111,8 @@ class CommandHandler:
         filters = self._normalize_filters(self.arguments.get("filters"))
         expand_dropdowns = self._get_bool_argument("expand_dropdowns", False)
         include_deleted = self._get_bool_argument("include_deleted", False)
+        entity_id = self._get_entity_id()
+        profile_id = self._get_profile_id()
 
         result = fetcher(
             limit=limit,
@@ -85,15 +124,45 @@ class CommandHandler:
             include_deleted=include_deleted,
             output=output,
             fields=fields,
+            entity_id=entity_id,
+            profile_id=profile_id,
         )
 
         return self._success(result)
 
-    def _create_change(self):
+    def _list_sub_items(self, id_field: str, fetcher: Callable[..., Any]):
+        item_id = self._get_argument_alias(id_field)
+        if item_id is None:
+            return self._error(
+                f"El parametro '{id_field}' es obligatorio.",
+                error_type="validation_error",
+            )
+        limit = self._get_int_argument("limit", 20)
+        offset = self._get_int_argument("offset", 0)
+        sort_by = self.arguments.get("sort_by")
+        order = self.arguments.get("order", "DESC")
+        output = self.arguments.get("output", "dict")
+        fields = self._normalize_fields(self.arguments.get("fields"))
+
+        return self._run_operation("Error listing sub-items", lambda: self._success(
+            fetcher(
+                item_id,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                order=order,
+                output=output,
+                fields=fields,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _change_add(self):
         name = self.arguments.get("name")
         if not name:
             return self._error(
-                "El parametro 'name' es obligatorio para create_change.",
+                "El parametro 'name' es obligatorio para change_add.",
                 error_type="validation_error",
             )
         content = self.arguments.get("content")
@@ -102,7 +171,8 @@ class CommandHandler:
         priority = self.arguments.get("priority")
         urgency = self.arguments.get("urgency")
         category_id = self._get_int_argument("category_id", None)
-        entity_id = self._get_int_argument("entity_id", None)
+        entity_id = self._get_entity_id()
+        profile_id = self._get_profile_id()
         additional = self._normalize_additional(self.arguments.get("additional"))
         additional = self._merge_pr_links(additional)
 
@@ -116,15 +186,16 @@ class CommandHandler:
                 urgency=urgency,
                 category_id=category_id,
                 entity_id=entity_id,
+                profile_id=profile_id,
                 additional_fields=additional,
             )
         ))
 
-    def _create_ticket(self):
+    def _ticket_add(self):
         name = self.arguments.get("name")
         if not name:
             return self._error(
-                "El parametro 'name' es obligatorio para create_ticket.",
+                "El parametro 'name' es obligatorio para ticket_add.",
                 error_type="validation_error",
             )
         content = self.arguments.get("content")
@@ -133,7 +204,8 @@ class CommandHandler:
         priority = self.arguments.get("priority")
         urgency = self.arguments.get("urgency")
         category_id = self._get_int_argument("category_id", None)
-        entity_id = self._get_int_argument("entity_id", None)
+        entity_id = self._get_entity_id()
+        profile_id = self._get_profile_id()
         additional = self._normalize_additional(self.arguments.get("additional"))
 
         return self._run_operation("Error creating ticket", lambda: self._wrap_result(
@@ -146,11 +218,12 @@ class CommandHandler:
                 urgency=urgency,
                 category_id=category_id,
                 entity_id=entity_id,
+                profile_id=profile_id,
                 additional_fields=additional,
             )
         ))
 
-    def _add_change_comment(self):
+    def _change_follow_add(self):
         additional = self._normalize_additional(self.arguments.get("additional"))
         is_private = self._get_bool_argument("is_private", False)
         return self._run_operation("Error adding change comment", lambda: self._wrap_result(
@@ -159,10 +232,15 @@ class CommandHandler:
                 content=self.arguments.get("content"),
                 is_private=is_private,
                 additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _add_change_solution(self):
+    def _change_follow_list(self):
+        return self._list_sub_items("change_id", glpi_changes.list_followups)
+
+    def _change_solution_add(self):
         additional = self._normalize_additional(self.arguments.get("additional"))
         solution_type_id = self._get_argument_alias("solution_type_id")
         return self._run_operation("Error adding change solution", lambda: self._wrap_result(
@@ -171,28 +249,37 @@ class CommandHandler:
                 content=self.arguments.get("content"),
                 solution_type_id=solution_type_id,
                 additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _assign_change_users(self):
+    def _change_solution_list(self):
+        return self._list_sub_items("change_id", glpi_changes.list_solutions)
+
+    def _change_user_assign(self):
         users = self._get_collection_alias("users")
         return self._run_operation("Error assigning change users", lambda: self._wrap_result(
             glpi_changes.assign_change_users(
                 change_id=self._get_argument_alias("change_id"),
                 users=users,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _assign_change_groups(self):
+    def _change_group_assign(self):
         groups = self._get_collection_alias("groups")
         return self._run_operation("Error assigning change groups", lambda: self._wrap_result(
             glpi_changes.assign_change_groups(
                 change_id=self._get_argument_alias("change_id"),
                 groups=groups,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _add_ticket_comment(self):
+    def _ticket_follow_add(self):
         additional = self._normalize_additional(self.arguments.get("additional"))
         is_private = self._get_bool_argument("is_private", False)
         return self._run_operation("Error adding ticket comment", lambda: self._wrap_result(
@@ -201,10 +288,15 @@ class CommandHandler:
                 content=self.arguments.get("content"),
                 is_private=is_private,
                 additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _add_ticket_solution(self):
+    def _ticket_follow_list(self):
+        return self._list_sub_items("ticket_id", glpi_tickets.list_followups)
+
+    def _ticket_solution_add(self):
         additional = self._normalize_additional(self.arguments.get("additional"))
         solution_type_id = self._get_argument_alias("solution_type_id")
         return self._run_operation("Error adding ticket solution", lambda: self._wrap_result(
@@ -213,28 +305,37 @@ class CommandHandler:
                 content=self.arguments.get("content"),
                 solution_type_id=solution_type_id,
                 additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _assign_ticket_users(self):
+    def _ticket_solution_list(self):
+        return self._list_sub_items("ticket_id", glpi_tickets.list_solutions)
+
+    def _ticket_user_assign(self):
         users = self._get_collection_alias("users")
         return self._run_operation("Error assigning ticket users", lambda: self._wrap_result(
             glpi_tickets.assign_ticket_users(
                 ticket_id=self._get_argument_alias("ticket_id"),
                 users=users,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _assign_ticket_groups(self):
+    def _ticket_group_assign(self):
         groups = self._get_collection_alias("groups")
         return self._run_operation("Error assigning ticket groups", lambda: self._wrap_result(
             glpi_tickets.assign_ticket_groups(
                 ticket_id=self._get_argument_alias("ticket_id"),
                 groups=groups,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _link_change_to_ticket(self):
+    def _change_ticket_link(self):
         change_id = self._get_argument_alias("change_id")
         ticket_id = self._get_from_arguments("ticket_id", "ticket", "tickets_id")
         if change_id is None or ticket_id is None:
@@ -248,10 +349,12 @@ class CommandHandler:
                 change_id=change_id,
                 ticket_id=ticket_id,
                 additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _link_ticket_to_change(self):
+    def _ticket_change_link(self):
         ticket_id = self._get_argument_alias("ticket_id")
         change_id = self._get_from_arguments("change_id", "change", "changes_id")
         if ticket_id is None or change_id is None:
@@ -265,10 +368,12 @@ class CommandHandler:
                 ticket_id=ticket_id,
                 change_id=change_id,
                 additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _unlink_change_ticket(self):
+    def _change_ticket_unlink(self):
         change_id = self._get_argument_alias("change_id")
         link_id = self._get_argument_alias("link_id")
         if change_id is None or link_id is None:
@@ -284,10 +389,12 @@ class CommandHandler:
                 link_id=link_id,
                 purge=purge,
                 keep_history=keep_history,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _unlink_ticket_change(self):
+    def _ticket_change_unlink(self):
         ticket_id = self._get_argument_alias("ticket_id")
         link_id = self._get_argument_alias("link_id")
         if ticket_id is None or link_id is None:
@@ -303,15 +410,17 @@ class CommandHandler:
                 link_id=link_id,
                 purge=purge,
                 keep_history=keep_history,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
             )
         ))
 
-    def _update_change(self):
+    def _change_update(self):
         change_id = self._get_argument_alias("change_id")
         fields = self._get_mapping_alias("fields")
         if change_id is None:
             return self._error(
-                "El parametro 'change_id' es obligatorio para update_change.",
+                "El parametro 'change_id' es obligatorio para change_update.",
                 error_type="validation_error",
             )
         if fields is None:
@@ -322,15 +431,22 @@ class CommandHandler:
         fields = self._merge_pr_links(fields, target_key="controlistcontent")
         return self._run_operation(
             "Error updating change",
-            lambda: self._wrap_result(glpi_changes.update_change(change_id=change_id, fields=fields)),
+            lambda: self._wrap_result(
+                glpi_changes.update_change(
+                    change_id=change_id,
+                    fields=fields,
+                    entity_id=self._get_entity_id(),
+                    profile_id=self._get_profile_id(),
+                )
+            ),
         )
 
-    def _update_ticket(self):
+    def _ticket_update(self):
         ticket_id = self._get_argument_alias("ticket_id")
         fields = self._get_mapping_alias("fields")
         if ticket_id is None:
             return self._error(
-                "El parametro 'ticket_id' es obligatorio para update_ticket.",
+                "El parametro 'ticket_id' es obligatorio para ticket_update.",
                 error_type="validation_error",
             )
         if fields is None:
@@ -340,8 +456,154 @@ class CommandHandler:
             )
         return self._run_operation(
             "Error updating ticket",
-            lambda: self._wrap_result(glpi_tickets.update_ticket(ticket_id=ticket_id, fields=fields)),
+            lambda: self._wrap_result(
+                glpi_tickets.update_ticket(
+                    ticket_id=ticket_id,
+                    fields=fields,
+                    entity_id=self._get_entity_id(),
+                    profile_id=self._get_profile_id(),
+                )
+            ),
         )
+
+    def _ticket_delete(self):
+        ticket_id = self._get_argument_alias("ticket_id")
+        if ticket_id is None:
+            return self._error(
+                "El parametro 'ticket_id' es obligatorio para ticket_delete.",
+                error_type="validation_error",
+            )
+        purge = self.arguments.get("purge", False)
+        keep_history = self.arguments.get("keep_history", True)
+        return self._run_operation("Error deleting ticket", lambda: self._wrap_result(
+            glpi_tickets.delete_ticket(
+                ticket_id=ticket_id,
+                purge=purge,
+                keep_history=keep_history,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _change_delete(self):
+        change_id = self._get_argument_alias("change_id")
+        if change_id is None:
+            return self._error(
+                "El parametro 'change_id' es obligatorio para change_delete.",
+                error_type="validation_error",
+            )
+        purge = self.arguments.get("purge", False)
+        keep_history = self.arguments.get("keep_history", True)
+        return self._run_operation("Error deleting change", lambda: self._wrap_result(
+            glpi_changes.delete_change(
+                change_id=change_id,
+                purge=purge,
+                keep_history=keep_history,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _item_type_list(self):
+        return self._run_operation(
+            "Error listing itemtypes",
+            lambda: self._success(glpi_generic.list_itemtypes()),
+        )
+
+    def _item_subtype_list(self):
+        itemtype = self.arguments.get("itemtype")
+        return self._run_operation(
+            "Error listing subtypes",
+            lambda: self._success(glpi_generic.list_subtypes(itemtype)),
+        )
+
+    def _item_list(self):
+        itemtype = self.arguments.get("itemtype")
+        if not itemtype:
+            return self._error(
+                "El parametro 'itemtype' es obligatorio para item_list.",
+                error_type="validation_error",
+            )
+        limit = self._get_int_argument("limit", 20)
+        offset = self._get_int_argument("offset", 0)
+        sort_by = self.arguments.get("sort_by", "date_mod")
+        order = self.arguments.get("order", "DESC")
+        output = self.arguments.get("output", "dict")
+        fields = self._normalize_fields(self.arguments.get("fields"))
+        filters = self._normalize_filters(self.arguments.get("filters"))
+        expand_dropdowns = self._get_bool_argument("expand_dropdowns", False)
+        include_deleted = self._get_bool_argument("include_deleted", False)
+
+        return self._run_operation("Error listing items", lambda: self._success(
+            glpi_generic.list_items(
+                itemtype,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                order=order,
+                output=output,
+                fields=fields,
+                filters=filters,
+                expand_dropdowns=expand_dropdowns,
+                include_deleted=include_deleted,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _item_get(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
+        if not itemtype or item_id is None:
+            return self._error(
+                "Los parametros 'itemtype' e 'id' son obligatorios para item_get.",
+                error_type="validation_error",
+            )
+        fields = self._normalize_fields(self.arguments.get("fields"))
+        expand_dropdowns = self._get_bool_argument("expand_dropdowns", False)
+
+        return self._run_operation("Error getting item", lambda: self._success(
+            glpi_generic.get_item(
+                itemtype,
+                item_id,
+                fields=fields,
+                expand_dropdowns=expand_dropdowns,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _item_subitem_list(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
+        subtype = self.arguments.get("subtype")
+        if not itemtype or item_id is None or not subtype:
+            return self._error(
+                "Los parametros 'itemtype', 'id' y 'subtype' son obligatorios para item_subitem_list.",
+                error_type="validation_error",
+            )
+        limit = self._get_int_argument("limit", 20)
+        offset = self._get_int_argument("offset", 0)
+        sort_by = self.arguments.get("sort_by")
+        order = self.arguments.get("order", "DESC")
+        output = self.arguments.get("output", "dict")
+        fields = self._normalize_fields(self.arguments.get("fields"))
+
+        return self._run_operation("Error listing sub-items", lambda: self._success(
+            glpi_generic.list_subitems(
+                itemtype,
+                item_id,
+                subtype,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                order=order,
+                output=output,
+                fields=fields,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
 
     def _wrap_result(self, result: Any):
         if hasattr(result, "summary") and callable(result.summary):
@@ -402,6 +664,32 @@ class CommandHandler:
 
     def _get_argument_alias(self, canonical_key: str):
         return self._get_from_arguments(*ID_ALIASES[canonical_key])
+
+    def _get_entity_id(self) -> Optional[int]:
+        value = self._get_from_arguments("entity_id", "entities_id")
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            # Blank string means "no entity change requested", not an error.
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning("Invalid entity_id: %s. Ignoring.", value)
+            return None
+
+    def _get_profile_id(self) -> Optional[int]:
+        value = self._get_from_arguments("profile_id", "profiles_id")
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            # Blank string means "no profile change requested", not an error.
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning("Invalid profile_id: %s. Ignoring.", value)
+            return None
 
     def _get_collection_argument(self, primary: str, alternatives: Sequence[str]):
         value = self.arguments.get(primary)

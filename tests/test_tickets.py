@@ -50,6 +50,9 @@ def test_create_ticket_builds_expected_payload(monkeypatch):
         def __exit__(self, exc_type, exc, tb):
             return False
 
+        def change_active_entity(self, entity_id):
+            captured['switched_to'] = entity_id
+
         def create_ticket(self, **payload):
             captured['payload'] = payload
             return {'id': 99, 'name': payload['name']}
@@ -179,3 +182,269 @@ def test_delete_ticket_converts_flags(monkeypatch):
     assert captured['purge'] is True
     assert captured['log'] is False
     assert result.summary() == 'Deleted ticket 15'
+
+
+def test_create_ticket_switches_active_entity_when_entity_id_given(monkeypatch):
+    captured = {}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def change_active_entity(self, entity_id):
+            captured['switched_to'] = entity_id
+
+        def create_ticket(self, **payload):
+            captured['payload'] = payload
+            return {'id': 1, 'name': payload['name']}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.create_ticket(name='Demo', entity_id=9)
+
+    assert captured['switched_to'] == 9
+    assert captured['payload']['entities_id'] == 9
+
+
+def test_create_ticket_does_not_switch_entity_by_default(monkeypatch):
+    captured = {'switch_called': False}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def change_active_entity(self, entity_id):
+            captured['switch_called'] = True
+
+        def create_ticket(self, **payload):
+            return {'id': 1, 'name': payload['name']}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.create_ticket(name='Demo')
+
+    assert captured['switch_called'] is False
+
+
+def test_update_ticket_switches_active_entity_when_entity_id_given(monkeypatch):
+    captured = {}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def change_active_entity(self, entity_id):
+            captured['switched_to'] = entity_id
+
+        def update_items(self, table, payloads):
+            return {'updated': payloads}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.update_ticket(ticket_id=10, fields={'status': 'Closed'}, entity_id=4)
+
+    assert captured['switched_to'] == 4
+
+
+def test_create_ticket_switches_to_root_entity_when_entity_id_is_zero(monkeypatch):
+    # GLPI's root entity conventionally has id 0; it must not be rejected as invalid.
+    captured = {}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def change_active_entity(self, entity_id):
+            captured['switched_to'] = entity_id
+
+        def create_ticket(self, **payload):
+            captured['payload'] = payload
+            return {'id': 1, 'name': payload['name']}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.create_ticket(name='Demo', entity_id=0)
+
+    assert captured['switched_to'] == 0
+    assert captured['payload']['entities_id'] == 0
+
+
+def test_delete_ticket_switches_active_entity_when_entity_id_given(monkeypatch):
+    captured = {}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def change_active_entity(self, entity_id):
+            captured['switched_to'] = entity_id
+
+        def delete_items(self, table, ids, *, purge, log):
+            return {'deleted': ids}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.delete_ticket('15', entity_id=2)
+
+    assert captured['switched_to'] == 2
+
+
+def test_create_ticket_switches_profile_before_entity(monkeypatch):
+    calls = []
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def change_active_profile(self, profile_id):
+            calls.append(('profile', profile_id))
+
+        def change_active_entity(self, entity_id):
+            calls.append(('entity', entity_id))
+
+        def create_ticket(self, **payload):
+            return {'id': 1, 'name': payload['name']}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.create_ticket(name='Demo', entity_id=11, profile_id=24)
+
+    # The active profile determines rights; the active entity only scopes
+    # visible records. Profile must be switched first so the entity switch
+    # (and the operation that follows) runs under the intended permissions.
+    assert calls == [('profile', 24), ('entity', 11)]
+
+
+def test_create_ticket_does_not_switch_profile_by_default(monkeypatch):
+    captured = {'switch_called': False}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def change_active_profile(self, profile_id):
+            captured['switch_called'] = True
+
+        def create_ticket(self, **payload):
+            return {'id': 1, 'name': payload['name']}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.create_ticket(name='Demo')
+
+    assert captured['switch_called'] is False
+
+
+class _NoRangeDummyHandler:
+    """Common base: GLPI's sub-item endpoints don't always send Content-Range."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    @property
+    def response_range(self):
+        from glpi_client import GLPIError
+        raise GLPIError("The previous request did not return a range")
+
+
+def test_list_followups_returns_dict_by_default(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_sub_items(self, item_type, item_id, sub_item_type, **kwargs):
+            captured['item_type'] = item_type
+            captured['item_id'] = item_id
+            captured['sub_item_type'] = sub_item_type
+            captured.update(kwargs)
+            return [{'id': 1, 'date': '2024-01-01', 'users_id': 5, 'content': 'hola', 'is_private': 0}]
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    result = tickets.list_followups(ticket_id=10)
+
+    assert captured['item_type'] == 'Ticket'
+    assert captured['item_id'] == 10
+    assert captured['sub_item_type'] == 'ITILFollowup'
+    assert result['followups'][0]['id'] == 1
+    assert result['followups'][0]['content'] == 'hola'
+    assert result['range'] is None
+
+
+def test_list_solutions_supports_raw_output(monkeypatch):
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_sub_items(self, item_type, item_id, sub_item_type, **kwargs):
+            return [{'id': 9, 'status': 3, 'content': 'sol'}]
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    result = tickets.list_solutions(ticket_id=10, output='raw')
+
+    assert result == [{'id': 9, 'status': 3, 'content': 'sol'}]
+
+
+def test_list_followups_switches_entity_and_profile(monkeypatch):
+    calls = []
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def change_active_profile(self, profile_id):
+            calls.append(('profile', profile_id))
+
+        def change_active_entity(self, entity_id):
+            calls.append(('entity', entity_id))
+
+        def get_sub_items(self, item_type, item_id, sub_item_type, **kwargs):
+            return []
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.list_followups(ticket_id=10, entity_id=11, profile_id=24)
+
+    assert calls == [('profile', 24), ('entity', 11)]

@@ -15,7 +15,7 @@ import mcp_glpi.GLPITools as GLPITools
 import mcp_glpi.GLPiHandler as GLPiHandler
 
 
-SERVER_VERSION = "2.0.0"
+SERVER_VERSION = "3.0.0"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
