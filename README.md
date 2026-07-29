@@ -5,6 +5,7 @@ Servidor de referencia para integrar el ecosistema Model Context Protocol (MCP) 
 ## Caracteristicas
 - Implementacion MCP sobre stdio lista para Claude Desktop y otros clientes compatibles.
 - Coleccion de herramientas GLPI para listar, crear, actualizar y relacionar tickets y cambios, ademas de operaciones de sesion del usuario logueado.
+- Subida y descarga de archivos (Document de GLPI), y vinculo/desvinculo de documentos con tickets y cambios.
 - Validacion de configuracion impulsada por Pydantic y uso de variables de entorno con `.env`.
 - Respuestas normalizadas en JSON para facilitar integracion con clientes MCP y automatizaciones.
 - Organizacion modular por paquetes (`tickets/`, `changes/`, `session/`) para extender nuevas funcionalidades con menor acoplamiento.
@@ -65,6 +66,10 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 | `item_list` | Acceso generico de solo lectura: lista elementos de un itemtype soportado. |
 | `item_get` | Acceso generico de solo lectura a un elemento puntual (por id) de un itemtype soportado. |
 | `item_subitem_list` | Acceso generico de solo lectura a los sub-items de un elemento (itemtype/id/subtype soportados). |
+| `file_upload` | Sube un archivo local como Document de GLPI (multipart/form-data). |
+| `file_download` | Descarga un Document de GLPI y lo escribe en una ruta local. |
+| `file_link` | Vincula un Document existente a un ticket o cambio (Document_Item). |
+| `file_unlink` | Elimina la relacion Document_Item entre un documento y el elemento al que estaba vinculado. |
 
 `ticket_follow_list`/`change_follow_list` y `ticket_solution_list`/`change_solution_list` listan los sub-items (`ITILFollowup`/`ITILSolution`) de un ticket o cambio puntual. Aceptan `ticket_id`/`change_id` (obligatorio), `limit`, `offset`, `sort_by`, `order`, `output` (`dict`/`table`/`raw`), `fields`, y los mismos `entity_id`/`profile_id` opcionales descritos abajo. No soportan `filters`/`expand_dropdowns`/`include_deleted` porque la API de sub-items de GLPI no los expone.
 
@@ -77,7 +82,17 @@ Ademas de las herramientas especificas, hay tres herramientas de acceso **generi
 - `item_subitem_list(itemtype, id, subtype, ...)`: lista sub-items de un elemento (`GET /{itemtype}/{id}/{subtype}`).
 - `item_type_list` / `item_subtype_list`: devuelven los itemtypes/subtypes soportados, cada uno con una breve descripcion, para saber que valores son validos antes de llamar a las anteriores.
 
-Los itemtypes/subtypes soportados son una **lista blanca deliberada** (hoy: `Ticket`, `Change`, y sus sub-recursos ya cubiertos por las herramientas especificas — `ITILFollowup`, `ITILSolution`, `Ticket_User`, `Group_Ticket`, `Change_User`, `Change_Group`, `Change_Ticket`). Un `itemtype`/`subtype` fuera de esa lista (por ejemplo `User`, `Config`, `Computer`) devuelve un error de validacion en vez de ejecutarse — este servidor no expone datos de GLPI mas alla de tickets/cambios y sus relaciones, ni siquiera a traves de la ruta generica.
+Los itemtypes/subtypes soportados son una **lista blanca deliberada** (hoy: `Ticket`, `Change`, `Document`, y sus sub-recursos ya cubiertos por las herramientas especificas — `ITILFollowup`, `ITILSolution`, `Ticket_User`, `Group_Ticket`, `Change_User`, `Change_Group`, `Change_Ticket`, `Document_Item`). Un `itemtype`/`subtype` fuera de esa lista (por ejemplo `User`, `Config`, `Computer`) devuelve un error de validacion en vez de ejecutarse — este servidor no expone datos de GLPI mas alla de tickets/cambios y sus relaciones, ni siquiera a traves de la ruta generica.
+
+`item_list(itemtype="Document", ...)` / `item_get(itemtype="Document", id=...)` permiten buscar/consultar metadata de documentos (nombre, filename, mime, entidad, fecha), e `item_subitem_list(itemtype="Ticket"|"Change", id=..., subtype="Document_Item")` muestra que documentos ya estan vinculados a un ticket o cambio puntual — sin necesidad de una tool dedicada para listar/buscar documentos.
+
+### Archivos (`file_upload` / `file_download` / `file_link` / `file_unlink`)
+
+- `file_upload(file_path, ...)`: sube un archivo como Document de GLPI (`POST Document/` multipart/form-data). `file_path` es una ruta local en el sistema de archivos de la maquina donde corre el servidor MCP; `file_name` por defecto es el nombre base de `file_path`.
+- `file_download(document_id, destination_path, ...)`: descarga un Document (`GET Document/:id` con `Accept: application/octet-stream`) y escribe los bytes en `destination_path` (ruta local, se crean los directorios padre si hace falta).
+- `file_link(document_id, item_type, item_id, ...)` / `file_unlink(document_id, link_id, ...)`: crean/eliminan la relacion `Document_Item` entre un documento y un ticket o cambio. `item_type` esta restringido al mismo `ITEMTYPE_CATALOG` que gobierna las herramientas genericas.
+
+Las cuatro aceptan los mismos `entity_id`/`profile_id` opcionales que el resto de las herramientas.
 
 Todas las herramientas que operan sobre un ticket o cambio (creacion, listados, comentarios, soluciones, asignaciones, enlaces, actualizacion y borrado) aceptan dos parametros opcionales:
 
@@ -162,7 +177,8 @@ pip install -e .[dev]
 
 Las pruebas cubren:
 - `CommandHandler` para uso y validacion de argumentos.
-- Helpers de tickets, cambios y sesion (`mcp_glpi.glpi.tickets`, `mcp_glpi.glpi.changes`, `mcp_glpi.glpi.session`).
+- Helpers de tickets, cambios, sesion y archivos (`mcp_glpi.glpi.tickets`, `mcp_glpi.glpi.changes`, `mcp_glpi.glpi.session`, `mcp_glpi.glpi.files`).
+- El wrapper HTTP de `glpi_client` (`tests/glpi_client/`), incluyendo subida/descarga de documentos.
 - Validacion basica de `claude_desktop_config.json` y contenido Markdown.
 
 ## Estructura Interna
@@ -171,7 +187,8 @@ La capa GLPI fue separada por dominio y responsabilidad:
 - `src/mcp_glpi/glpi/tickets/`: lectura, creacion, actualizacion, comentarios (agregar/listar), soluciones (agregar/listar), asignaciones, enlaces y borrado.
 - `src/mcp_glpi/glpi/changes/`: lectura, creacion, actualizacion, comentarios (agregar/listar), soluciones (agregar/listar), asignaciones, enlaces y borrado.
 - `src/mcp_glpi/glpi/session/`: lectura de sesion, perfiles (listado y cambio de perfil activo) y entidades (listado y cambio de entidad activa) del usuario logueado.
-- `src/mcp_glpi/glpi/generic.py`: acceso generico de solo lectura a itemtypes/subtypes soportados (`ITEMTYPE_CATALOG`, la lista blanca), detras de `item_list`/`item_get`/`item_subitem_list`/`item_type_list`/`item_subtype_list`.
+- `src/mcp_glpi/glpi/files/`: subida (`file_upload`), descarga (`file_download`) y vinculo/desvinculo (`file_link`/`file_unlink`, itemtype `Document_Item`) de documentos.
+- `src/mcp_glpi/glpi/generic.py`: acceso generico de solo lectura a itemtypes/subtypes soportados (`ITEMTYPE_CATALOG`, la lista blanca — incluye `Document`/`Document_Item`), detras de `item_list`/`item_get`/`item_subitem_list`/`item_type_list`/`item_subtype_list`.
 - `src/mcp_glpi/glpi/shared.py`: helpers comunes reutilizados por las entidades GLPI, incluyendo `fetch_paginated_items`/`fetch_paginated_subitems` (paginacion, apertura de sesion, cambio de entidad/perfil) y `EntityList.respond()` (dispatch de `output`/`fields`) que comparten `ticket_list`/`change_list`, los listados de seguimientos/soluciones, e `item_list`/`item_subitem_list`.
 
 ## Recursos Utiles

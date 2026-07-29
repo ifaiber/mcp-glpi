@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional, Sequence
 import mcp.types as types
 from mcp_glpi.common.config import get_config
 from mcp_glpi.glpi import changes as glpi_changes
+from mcp_glpi.glpi import files as glpi_files
 from mcp_glpi.glpi import generic as glpi_generic
 from mcp_glpi.glpi import session as glpi_session
 from mcp_glpi.glpi import tickets as glpi_tickets
@@ -16,6 +17,7 @@ COMMAND_HANDLERS = {spec.name: spec.handler_name for spec in TOOL_SPECS}
 ID_ALIASES = {
     "change_id": ("change_id", "id", "changes_id"),
     "ticket_id": ("ticket_id", "id", "tickets_id"),
+    "document_id": ("document_id", "id", "documents_id"),
     "link_id": ("link_id", "relation_id"),
     "solution_type_id": ("solution_type_id", "solutiontypes_id"),
 }
@@ -600,6 +602,90 @@ class CommandHandler:
                 order=order,
                 output=output,
                 fields=fields,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _file_upload(self):
+        file_path = self.arguments.get("file_path")
+        if not file_path:
+            return self._error(
+                "El parametro 'file_path' es obligatorio para file_upload.",
+                error_type="validation_error",
+            )
+        name = self.arguments.get("name")
+        file_name = self.arguments.get("file_name")
+        additional = self._normalize_additional(self.arguments.get("additional"))
+
+        return self._run_operation("Error uploading document", lambda: self._wrap_result(
+            glpi_files.upload_document(
+                file_path,
+                name=name,
+                file_name=file_name,
+                additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _file_download(self):
+        document_id = self._get_argument_alias("document_id")
+        destination_path = self.arguments.get("destination_path")
+        if document_id is None or not destination_path:
+            return self._error(
+                "Los parametros 'document_id' y 'destination_path' son obligatorios para file_download.",
+                error_type="validation_error",
+            )
+
+        return self._run_operation("Error downloading document", lambda: self._wrap_result(
+            glpi_files.download_document(
+                document_id,
+                destination_path,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _file_link(self):
+        document_id = self._get_argument_alias("document_id")
+        item_type = self.arguments.get("item_type")
+        item_id = self.arguments.get("item_id")
+        if document_id is None or not item_type or item_id is None:
+            return self._error(
+                "Los parametros 'document_id', 'item_type' e 'item_id' son obligatorios para file_link.",
+                error_type="validation_error",
+            )
+        additional = self._normalize_additional(self.arguments.get("additional"))
+
+        return self._run_operation("Error linking document", lambda: self._wrap_result(
+            glpi_files.link_item(
+                document_id=document_id,
+                item_type=item_type,
+                item_id=item_id,
+                additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _file_unlink(self):
+        document_id = self._get_argument_alias("document_id")
+        link_id = self._get_argument_alias("link_id")
+        if document_id is None or link_id is None:
+            return self._error(
+                "Los parametros 'document_id' y 'link_id' son obligatorios para file_unlink.",
+                error_type="validation_error",
+            )
+        purge = self.arguments.get("purge", False)
+        keep_history = self.arguments.get("keep_history", True)
+
+        return self._run_operation("Error unlinking document", lambda: self._wrap_result(
+            glpi_files.unlink_item(
+                document_id=document_id,
+                link_id=link_id,
+                purge=purge,
+                keep_history=keep_history,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )

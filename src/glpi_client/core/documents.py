@@ -4,7 +4,7 @@ Gestión de documentos en GLPI.
 
 import json
 import logging
-from typing import Optional, IO
+from typing import Any, Dict, Optional, IO
 
 from .session import SessionManager
 from ..exceptions import GLPIError
@@ -16,10 +16,17 @@ class DocumentManager(SessionManager):
     """Maneja las operaciones con documentos en GLPI."""
 
     def upload_document(
-        self, file: IO, name: str = None, file_name: str = None
+        self,
+        file: IO,
+        name: str = None,
+        file_name: str = None,
+        extra_input: Optional[Dict[str, Any]] = None,
     ) -> dict:
         """Sube un documento a GLPI."""
-        manifest = json.dumps({"input": {"name": name, "_filename": [file_name]}})
+        input_payload: Dict[str, Any] = {"name": name, "_filename": [file_name]}
+        if extra_input:
+            input_payload.update(extra_input)
+        manifest = json.dumps({"input": input_payload})
 
         url = self._get_method_url("Document/")
         headers = self._header_dict({"Session-Token": self.session_token})

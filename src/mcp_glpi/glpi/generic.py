@@ -45,6 +45,7 @@ ITEMTYPE_CATALOG: Dict[str, Dict[str, Any]] = {
             "Ticket_User": "Usuarios asignados/relacionados al ticket.",
             "Group_Ticket": "Grupos asignados/relacionados al ticket.",
             "Change_Ticket": "Relacion con cambios vinculados al ticket.",
+            "Document_Item": "Documentos (archivos) vinculados al ticket.",
         },
     },
     "Change": {
@@ -55,7 +56,12 @@ ITEMTYPE_CATALOG: Dict[str, Dict[str, Any]] = {
             "Change_User": "Usuarios asignados/relacionados al cambio.",
             "Change_Group": "Grupos asignados/relacionados al cambio.",
             "Change_Ticket": "Relacion con tickets vinculados al cambio.",
+            "Document_Item": "Documentos (archivos) vinculados al cambio.",
         },
+    },
+    "Document": {
+        "description": "Documentos (archivos) adjuntos en GLPI.",
+        "subtypes": {},
     },
 }
 

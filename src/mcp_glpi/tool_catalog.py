@@ -467,7 +467,7 @@ def _link_schema(
     }
 
 
-def _unlink_schema(item_field: str, item_label: str) -> Dict[str, Any]:
+def _unlink_schema(item_field: str, item_label: str, relation_label: str = "Change_Ticket") -> Dict[str, Any]:
     return {
         "type": "object",
         "properties": {
@@ -477,7 +477,7 @@ def _unlink_schema(item_field: str, item_label: str) -> Dict[str, Any]:
             },
             "link_id": {
                 "type": ["integer", "string"],
-                "description": "Identificador del enlace (Change_Ticket)",
+                "description": f"Identificador del enlace ({relation_label})",
             },
             "purge": {
                 "type": _def_bool,
@@ -535,6 +535,96 @@ def _update_schema(item_field: str, item_label: str) -> Dict[str, Any]:
             "profile_id": _profile_id_property,
         },
         "required": [item_field, "fields"],
+    }
+
+
+def _file_upload_schema() -> Dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "file_path": {
+                "type": "string",
+                "description": (
+                    "Ruta local del archivo a subir, en el sistema de archivos "
+                    "de la maquina donde corre el servidor MCP."
+                ),
+            },
+            "name": {
+                "type": ["string", "null"],
+                "description": "Titulo/nombre del documento en GLPI (Document.name).",
+            },
+            "file_name": {
+                "type": ["string", "null"],
+                "description": (
+                    "Nombre de archivo a registrar en GLPI. Si se omite, se usa "
+                    "el nombre base de 'file_path'."
+                ),
+            },
+            "additional": {
+                "type": "object",
+                "additionalProperties": True,
+                "description": "Campos adicionales del Document que se enviaran tal cual (por ejemplo entities_id).",
+            },
+            "entity_id": _entity_id_property,
+            "profile_id": _profile_id_property,
+        },
+        "required": ["file_path"],
+        "description": "Sube un archivo local como Document de GLPI (multipart/form-data).",
+    }
+
+
+def _file_download_schema() -> Dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "document_id": {
+                "type": ["integer", "string"],
+                "description": "Identificador (id) del Document a descargar.",
+            },
+            "destination_path": {
+                "type": "string",
+                "description": (
+                    "Ruta local de destino donde escribir el archivo, en el "
+                    "sistema de archivos de la maquina donde corre el servidor MCP. "
+                    "Puede ser la ruta completa del archivo, o una carpeta ya "
+                    "existente (en ese caso se usa el nombre de archivo registrado en GLPI)."
+                ),
+            },
+            "entity_id": _entity_id_property,
+            "profile_id": _profile_id_property,
+        },
+        "required": ["document_id", "destination_path"],
+        "description": "Descarga un Document de GLPI y lo escribe en una ruta local.",
+    }
+
+
+def _file_link_schema() -> Dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "document_id": {
+                "type": ["integer", "string"],
+                "description": "Identificador (id) del Document a vincular.",
+            },
+            "item_type": {
+                "type": "string",
+                "enum": _SUPPORTED_ITEMTYPES,
+                "description": "Itemtype al que se vinculara el documento.",
+            },
+            "item_id": {
+                "type": ["integer", "string"],
+                "description": "Identificador (id) del elemento al que se vinculara el documento.",
+            },
+            "additional": {
+                "type": "object",
+                "additionalProperties": True,
+                "description": "Campos adicionales de Document_Item que se enviaran tal cual",
+            },
+            "entity_id": _entity_id_property,
+            "profile_id": _profile_id_property,
+        },
+        "required": ["document_id", "item_type", "item_id"],
+        "description": "Crea la relacion Document_Item entre un documento y un elemento GLPI.",
     }
 
 
@@ -863,6 +953,40 @@ TOOL_SPECS: List[ToolSpec] = [
         ),
         input_schema=_item_subitem_list_schema(),
         handler_name="_item_subitem_list",
+    ),
+    ToolSpec(
+        name="file_upload",
+        description=(
+            "Sube un archivo local como Document de GLPI. Use 'item_list'/'item_get' "
+            "con itemtype='Document' para buscar/consultar documentos, y 'file_link' "
+            "para vincularlo a un ticket o cambio."
+        ),
+        input_schema=_file_upload_schema(),
+        handler_name="_file_upload",
+    ),
+    ToolSpec(
+        name="file_download",
+        description=(
+            "Descarga un Document de GLPI y lo escribe en una ruta local. Use "
+            "'item_list'/'item_get' con itemtype='Document' para encontrar el id a descargar."
+        ),
+        input_schema=_file_download_schema(),
+        handler_name="_file_download",
+    ),
+    ToolSpec(
+        name="file_link",
+        description=(
+            "Vincula un Document existente a un ticket o cambio (Document_Item). Use "
+            "'item_subitem_list' con subtype='Document_Item' para ver los documentos ya vinculados."
+        ),
+        input_schema=_file_link_schema(),
+        handler_name="_file_link",
+    ),
+    ToolSpec(
+        name="file_unlink",
+        description="Elimina la relacion Document_Item entre un documento y el elemento al que estaba vinculado",
+        input_schema=_unlink_schema("document_id", "documento", relation_label="Document_Item"),
+        handler_name="_file_unlink",
     ),
 ]
 

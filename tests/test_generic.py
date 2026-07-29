@@ -24,7 +24,7 @@ class _NoRangeDummyHandler:
 def test_list_itemtypes_returns_catalog():
     result = generic.list_itemtypes()
     names = {entry['itemtype'] for entry in result}
-    assert names == {'Ticket', 'Change'}
+    assert names == {'Ticket', 'Change', 'Document'}
     assert all(entry['description'] for entry in result)
 
 
@@ -32,6 +32,21 @@ def test_list_subtypes_without_filter_returns_all():
     result = generic.list_subtypes()
     itemtypes = {entry['itemtype'] for entry in result}
     assert itemtypes == {'Ticket', 'Change'}
+
+
+def test_list_subtypes_includes_document_item_for_ticket_and_change():
+    result = generic.list_subtypes()
+    subtypes_by_itemtype = {}
+    for entry in result:
+        subtypes_by_itemtype.setdefault(entry['itemtype'], set()).add(entry['subtype'])
+    assert 'Document_Item' in subtypes_by_itemtype['Ticket']
+    assert 'Document_Item' in subtypes_by_itemtype['Change']
+
+
+def test_list_subtypes_document_has_none():
+    # Document itself has no supported sub-items; it's a leaf itemtype in the catalog.
+    result = generic.list_subtypes('Document')
+    assert result == []
 
 
 def test_list_subtypes_filtered_by_itemtype():
@@ -209,3 +224,45 @@ def test_list_subitems_supports_raw_output(monkeypatch):
     result = generic.list_subitems('Ticket', 47, 'ITILSolution', output='raw')
 
     assert result == [{'id': 9}]
+
+
+def test_list_items_supports_document_itemtype(monkeypatch):
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_many_items(self, itemtype, **kwargs):
+            return [{'id': 1, 'name': 'file.txt', 'filename': 'file.txt'}]
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    result = generic.list_items('Document')
+
+    assert result['items'][0]['name'] == 'file.txt'
+
+
+def test_get_item_supports_document_itemtype(monkeypatch):
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_item(self, itemtype, item_id, **kwargs):
+            return {'id': item_id, 'name': 'file.txt'}
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    result = generic.get_item('Document', 1)
+
+    assert result == {'id': 1, 'name': 'file.txt'}
+
+
+def test_list_subitems_supports_document_item_under_ticket(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_sub_items(self, itemtype, item_id, subtype, **kwargs):
+            captured['itemtype'] = itemtype
+            captured['subtype'] = subtype
+            return [{'id': 3, 'documents_id': 1, 'items_id': item_id}]
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    result = generic.list_subitems('Ticket', 47, 'Document_Item')
+
+    assert captured['itemtype'] == 'Ticket'
+    assert captured['subtype'] == 'Document_Item'
+    assert result['items'][0]['documents_id'] == 1

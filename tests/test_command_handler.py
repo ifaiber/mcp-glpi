@@ -7,6 +7,7 @@ from mcp_glpi.glpi import session as glpi_session
 from mcp_glpi.glpi import tickets as glpi_tickets
 from mcp_glpi.glpi import changes as glpi_changes
 from mcp_glpi.glpi import generic as glpi_generic
+from mcp_glpi.glpi import files as glpi_files
 
 
 class DummyResult:
@@ -696,3 +697,129 @@ def test_item_subitem_list_forwards_arguments(monkeypatch):
     assert captured['item_id'] == 47
     assert captured['subtype'] == 'ITILFollowup'
     assert captured['entity_id'] == 11
+
+
+def test_file_upload_requires_file_path():
+    response = CommandHandler('file_upload', {}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_file_upload_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_upload_document(file_path, **kwargs):
+        captured['file_path'] = file_path
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Document created (id=5): Doc',
+            payload={'response': {'id': 5}},
+        )
+
+    monkeypatch.setattr(glpi_files, 'upload_document', fake_upload_document)
+
+    response = CommandHandler(
+        'file_upload', {'file_path': 'C:/tmp/doc.txt', 'name': 'Doc', 'entity_id': '6'}
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert payload['summary'] == 'Document created (id=5): Doc'
+    assert captured['file_path'] == 'C:/tmp/doc.txt'
+    assert captured['name'] == 'Doc'
+    assert captured['entity_id'] == 6
+
+
+def test_file_download_requires_document_id_and_destination():
+    response = CommandHandler('file_download', {'document_id': 1}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_file_download_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_download_document(document_id, destination_path, **kwargs):
+        captured['document_id'] = document_id
+        captured['destination_path'] = destination_path
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Downloaded document 5',
+            payload={'response': {'bytes_written': 4}},
+        )
+
+    monkeypatch.setattr(glpi_files, 'download_document', fake_download_document)
+
+    response = CommandHandler(
+        'file_download',
+        {'document_id': 5, 'destination_path': 'C:/tmp/out.bin', 'profile_id': '24'},
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['document_id'] == 5
+    assert captured['destination_path'] == 'C:/tmp/out.bin'
+    assert captured['profile_id'] == 24
+
+
+def test_file_link_requires_document_item_type_and_item_id():
+    response = CommandHandler('file_link', {'document_id': 1}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_file_link_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_link_item(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Linked document 1 to Ticket 47',
+            payload={'response': {'id': 9}},
+        )
+
+    monkeypatch.setattr(glpi_files, 'link_item', fake_link_item)
+
+    response = CommandHandler(
+        'file_link', {'document_id': 1, 'item_type': 'Ticket', 'item_id': 47, 'entity_id': '6'}
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['document_id'] == 1
+    assert captured['item_type'] == 'Ticket'
+    assert captured['item_id'] == 47
+    assert captured['entity_id'] == 6
+
+
+def test_file_unlink_requires_document_id_and_link_id():
+    response = CommandHandler('file_unlink', {'document_id': 1}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_file_unlink_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_unlink_item(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Unlinked document 1 from relation 9',
+            payload={'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_files, 'unlink_item', fake_unlink_item)
+
+    response = CommandHandler(
+        'file_unlink', {'document_id': 1, 'link_id': 9, 'purge': True}
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['document_id'] == 1
+    assert captured['link_id'] == 9
+    assert captured['purge'] is True
