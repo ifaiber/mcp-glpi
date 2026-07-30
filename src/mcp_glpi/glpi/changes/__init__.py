@@ -1,6 +1,5 @@
 """Change facade exports."""
 
-from .comments import add_followup
 from .common import (
     DEFAULT_FIELDS,
     GLPIRequestHandler,
@@ -32,7 +31,6 @@ __all__ = [
     "ChangeList",
     "ChangeMutationResult",
     "_normalize_enum_value",
-    "add_followup",
     "add_solution",
     "all_changes",
     "create_change",

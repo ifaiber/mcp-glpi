@@ -1,6 +1,6 @@
 # Herramientas específicas de tickets, cambios y archivos GLPI
 
-Usar las herramientas `ticket_*` y `change_*` cuando la operación necesite crear, actualizar, comentar, solucionar o relacionar tickets y cambios. Usar `file_*` para gestionar archivos de tipo `Document` (subida, descarga, vínculo/desvínculo con un ticket o cambio). Usar `assistance_item_user_add`/`assistance_item_group_add` para asignar usuarios/grupos a un Ticket o Change (ver más abajo).
+Usar las herramientas `ticket_*` y `change_*` cuando la operación necesite crear, actualizar, solucionar o relacionar tickets y cambios. Usar `file_*` para gestionar archivos de tipo `Document` (subida, descarga, vínculo/desvínculo con un ticket o cambio). Usar `assistance_item_user_add`/`assistance_item_group_add`/`assistance_item_followup_add` para asignar usuarios/grupos o agregar comentarios a un Ticket o Change (ver más abajo).
 
 Para descubrir `itemtype`/`subtype` soportados, o para listar, consultar y eliminar elementos de forma genérica, ver el recurso `mcp-glpi://docs/glpi-items` (`item_list`, `item_get`, `item_delete`, `item_subitem_list`).
 
@@ -23,6 +23,16 @@ Esto envía a GLPI (`POST Change_User`) el payload `{"input":[{"changes_id":2620
 ```
 
 Esto envía a GLPI (`POST Group_Ticket`) el payload `{"input":[{"tickets_id":2079,"groups_id":5,"type":1,"use_notification":0}]}`. Cada entrada de `groups` admite `groups_id` (obligatorio), `type`, `use_notification`, `is_dynamic`, `alternative_email` — igual que antes.
+
+## Agregar comentarios a Ticket o Change
+
+`assistance_item_followup_add` reemplaza a `ticket_follow_add`/`change_follow_add`. A diferencia de `Ticket_User`/`Change_User` o `Group_Ticket`/`Change_Group`, `ITILFollowup` ya es itemtype-genérico del lado de GLPI: el payload siempre usa los campos `itemtype`/`items_id` (nunca `tickets_id`/`changes_id`), asi que solo cambia el valor de `itemtype`. Recibe `itemtype` (`"Ticket"` o `"Change"`), `id` y `content`:
+
+```json
+{"itemtype":"Change","id":2620,"content":"pruebas de ticketssss","is_private":0}
+```
+
+Esto envía a GLPI (`POST ITILFollowup`) el payload `{"input":[{"itemtype":"Change","items_id":2620,"content":"pruebas de ticketssss","is_private":0}]}`. `is_private` y `additional` son opcionales, igual que antes; para listar los comentarios ya registrados seguir usando `item_subitem_list` con `subtype: "ITILFollowup"` (ver `mcp-glpi://docs/glpi-items`).
 
 ## Transferir documentos
 
@@ -56,14 +66,13 @@ Construir las rutas relativas sustituyendo `{id}`/`{ticket_id}`/`{change_id}`/`{
 | Crear Change | `change_add` | `/Change` | `name` obligatorio; `content`, `status`, `impact`, `priority`, `urgency`, `category_id`, `additional`, `pr_links` opcionales. | Crear un cambio. | Actualizar un cambio existente. |
 | Actualizar Change | `change_update` | `/Change/{change_id}` | `change_id` y `fields` obligatorios; `pr_links` opcional. | Actualizar campos del cambio. | Crear o eliminar el cambio. |
 | Eliminar Change | `change_delete` | `/Change/{change_id}` | `change_id` obligatorio; `purge`, `keep_history` opcionales. | Enviar a papelera o purgar el cambio. | Eliminar solo una relación o subelemento. |
-| Agregar seguimiento a Ticket | `ticket_follow_add` | `/ITILFollowup` | `ticket_id` y `content` obligatorios; `is_private`, `additional` opcionales. | Crear un seguimiento asociado al ticket. | Editar o eliminar un seguimiento existente; para listarlos usar `item_subitem_list` con `itemtype: "Ticket"`, `subtype: "ITILFollowup"` (ver `mcp-glpi://docs/glpi-items`). |
 | Agregar solución a Ticket | `ticket_solution_add` | `/ITILSolution` | `ticket_id` y `content` obligatorios; `solution_type_id`, `additional` opcionales. | Registrar una solución del ticket. | Editar o eliminar una solución existente; para listarlas usar `item_subitem_list` con `itemtype: "Ticket"`, `subtype: "ITILSolution"` (ver `mcp-glpi://docs/glpi-items`). |
 | Vincular Change a Ticket | `ticket_change_link` | `/Change_Ticket` | `ticket_id` y `change_id` obligatorios; `additional` opcional. | Crear relación Ticket–Change. | Eliminar una relación existente. |
 | Desvincular Change de Ticket | `ticket_change_unlink` | `/Change_Ticket/{link_id}` | `ticket_id` y `link_id` obligatorios; `purge`, `keep_history` opcionales. | Eliminar relación Ticket–Change. | Eliminar el ticket o el cambio. |
-| Agregar seguimiento a Change | `change_follow_add` | `/ITILFollowup` | `change_id` y `content` obligatorios; `is_private`, `additional` opcionales. | Crear un seguimiento asociado al cambio. | Editar o eliminar un seguimiento existente; para listarlos usar `item_subitem_list` con `itemtype: "Change"`, `subtype: "ITILFollowup"` (ver `mcp-glpi://docs/glpi-items`). |
 | Agregar solución a Change | `change_solution_add` | `/ITILSolution` | `change_id` y `content` obligatorios; `solution_type_id`, `additional` opcionales. | Registrar una solución del cambio. | Editar o eliminar una solución existente; para listarlas usar `item_subitem_list` con `itemtype: "Change"`, `subtype: "ITILSolution"` (ver `mcp-glpi://docs/glpi-items`). |
 | Asignar usuarios a Ticket/Change | `assistance_item_user_add` | `/Ticket_User` · `/Change_User` | `itemtype` (`Ticket`\|`Change`), `id` y `users` obligatorios. Cada usuario requiere `users_id`; admite `type`, `use_notification`, `is_dynamic`, `alternative_email`. | Añadir usuarios a un ticket o cambio. | Quitar o editar asignaciones existentes; asignar a otro itemtype. |
 | Asignar grupos a Ticket/Change | `assistance_item_group_add` | `/Group_Ticket` · `/Change_Group` | `itemtype` (`Ticket`\|`Change`), `id` y `groups` obligatorios. Cada grupo requiere `groups_id`; admite `type`, `use_notification`, `is_dynamic`, `alternative_email`. | Añadir grupos a un ticket o cambio. | Quitar o editar asignaciones existentes; asignar a otro itemtype. |
+| Agregar comentario a Ticket/Change | `assistance_item_followup_add` | `/ITILFollowup` | `itemtype` (`Ticket`\|`Change`), `id` y `content` obligatorios; `is_private`, `additional` opcionales. | Crear un comentario asociado a un ticket o cambio. | Editar o eliminar un comentario existente; para listarlos usar `item_subitem_list` con `subtype: "ITILFollowup"` (ver `mcp-glpi://docs/glpi-items`). |
 | Vincular Ticket a Change | `change_ticket_link` | `/Change_Ticket` | `change_id` y `ticket_id` obligatorios; `additional` opcional. | Crear relación Change–Ticket. | Eliminar una relación existente. |
 | Desvincular Ticket de Change | `change_ticket_unlink` | `/Change_Ticket/{link_id}` | `change_id` y `link_id` obligatorios; `purge`, `keep_history` opcionales. | Eliminar relación Change–Ticket. | Eliminar el cambio o el ticket. |
 | Subir Document | `file_upload` | `/Document` | `file_path` obligatorio; `name`, `file_name`, `additional` opcionales. | Crear un `Document` a partir de un archivo local. | Modificar un documento existente o vincularlo a un ticket/cambio. |

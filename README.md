@@ -38,12 +38,11 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 | `change_list` | Lista cambios con filtros, paginacion y distintos formatos. |
 | `ticket_add` | Crea un ticket; soporta campos adicionales. |
 | `change_add` | Crea un cambio; soporta campos adicionales. |
-| `ticket_follow_add` | Agrega un comentario (seguimiento) a un ticket. |
 | `ticket_solution_add` | Registra una solucion de ticket. |
-| `change_follow_add` | Agrega un comentario (seguimiento) a un cambio. |
 | `change_solution_add` | Registra una solucion de cambio. |
 | `assistance_item_user_add` | Asigna usuarios a un Ticket o Change (itemtype indica cual). |
 | `assistance_item_group_add` | Asigna grupos a un Ticket o Change (itemtype indica cual). |
+| `assistance_item_followup_add` | Agrega un comentario (ITILFollowup) a un Ticket o Change. |
 | `change_ticket_link` | Vincula un ticket existente a un cambio. |
 | `ticket_change_link` | Vincula un cambio existente a un ticket. |
 | `change_ticket_unlink` | Elimina la relacion Change_Ticket desde un cambio. |
@@ -100,6 +99,16 @@ Las cuatro aceptan los mismos `entity_id`/`profile_id` opcionales que el resto d
 ```
 
 Esto envia a GLPI `POST Change_User`/`POST Group_Ticket` con `{"input":[{"changes_id":2620,"users_id":18,"type":1,"use_notification":0}]}` / `{"input":[{"tickets_id":2079,"groups_id":5,"type":1,"use_notification":0}]}` respectivamente.
+
+### Agregar comentarios (`assistance_item_followup_add`)
+
+`ticket_follow_add`/`change_follow_add` se reemplazaron por `assistance_item_followup_add`. A diferencia de las asignaciones (`tickets_id`/`changes_id`), `ITILFollowup` ya usa un payload itemtype-generico en GLPI (`itemtype`/`items_id`), asi que unificar solo requiere pasar el `itemtype` correcto:
+
+```json
+{"itemtype":"Change","id":2620,"content":"pruebas de ticketssss","is_private":0}
+```
+
+Esto envia a GLPI `POST ITILFollowup` con `{"input":[{"itemtype":"Change","items_id":2620,"content":"pruebas de ticketssss","is_private":0}]}`.
 
 Todas las herramientas que operan sobre un ticket o cambio (creacion, listados, comentarios, soluciones, asignaciones, enlaces, actualizacion y borrado) aceptan dos parametros opcionales:
 

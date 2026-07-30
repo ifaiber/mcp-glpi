@@ -907,3 +907,42 @@ def test_assistance_item_group_add_forwards_arguments(monkeypatch):
     assert captured['item_id'] == 2079
     assert captured['groups'] == {'groups_id': 5, 'type': 1, 'use_notification': 0}
     assert captured['entity_id'] == 6
+
+
+def test_assistance_item_followup_add_requires_itemtype_and_id():
+    response = CommandHandler('assistance_item_followup_add', {'content': 'hola'}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_assistance_item_followup_add_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_add_assistance_followup(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Added follow-up to Change 2620',
+            payload={'id': 2620, 'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_assistance, 'add_assistance_followup', fake_add_assistance_followup)
+
+    response = CommandHandler(
+        'assistance_item_followup_add',
+        {
+            'itemtype': 'Change',
+            'id': 2620,
+            'content': 'pruebas de ticketssss',
+            'is_private': 0,
+            'entity_id': '6',
+        },
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['itemtype'] == 'Change'
+    assert captured['item_id'] == 2620
+    assert captured['content'] == 'pruebas de ticketssss'
+    assert captured['is_private'] is False
+    assert captured['entity_id'] == 6

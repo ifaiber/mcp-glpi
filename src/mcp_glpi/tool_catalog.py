@@ -379,18 +379,29 @@ def _creation_schema(description: str) -> Dict[str, Any]:
     }
 
 
-def _comment_schema(item_field: str, item_label: str) -> Dict[str, Any]:
+def _assistance_followup_schema() -> Dict[str, Any]:
     properties = {
-        item_field: {
+        "itemtype": {
+            "type": "string",
+            "enum": sorted(ASSISTANCE_ITEMTYPES.keys()),
+            "description": "Itemtype al que se agrega el comentario (Ticket o Change).",
+        },
+        "id": {
             "type": ["integer", "string"],
-            "description": f"Identificador del {item_label}",
-        }
+            "description": "Identificador del Ticket o Change segun 'itemtype'.",
+        },
     }
     properties.update(copy.deepcopy(_comment_base_properties))
     return {
         "type": "object",
         "properties": properties,
-        "required": [item_field, "content"],
+        "required": ["itemtype", "id", "content"],
+        "description": (
+            "Parametros para agregar un comentario (ITILFollowup) a un Ticket "
+            "o Change. A diferencia de Ticket_User/Change_User, ITILFollowup ya "
+            "es itemtype-generico en GLPI (campos 'itemtype'/'items_id'), asi "
+            "que solo cambia el valor de 'itemtype' segun corresponda."
+        ),
     }
 
 
@@ -721,12 +732,6 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="_change_add",
     ),
     ToolSpec(
-        name="ticket_follow_add",
-        description="Agrega un comentario (seguimiento) a un ticket",
-        input_schema=_comment_schema("ticket_id", "ticket"),
-        handler_name="_ticket_follow_add",
-    ),
-    ToolSpec(
         name="ticket_solution_add",
         description="Registra una solucion para un ticket",
         input_schema=_solution_schema("ticket_id", "ticket"),
@@ -759,10 +764,15 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="_assistance_item_group_add",
     ),
     ToolSpec(
-        name="change_follow_add",
-        description="Agrega un comentario (seguimiento) a un cambio",
-        input_schema=_comment_schema("change_id", "cambio"),
-        handler_name="_change_follow_add",
+        name="assistance_item_followup_add",
+        description=(
+            "Agrega un comentario (ITILFollowup) a un Ticket o Change. "
+            "Reemplaza a ticket_follow_add/change_follow_add: ITILFollowup ya "
+            "es itemtype-generico en GLPI, asi que solo cambia el valor de "
+            "'itemtype' segun corresponda."
+        ),
+        input_schema=_assistance_followup_schema(),
+        handler_name="_assistance_item_followup_add",
     ),
     ToolSpec(
         name="change_solution_add",

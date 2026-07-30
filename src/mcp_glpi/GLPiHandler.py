@@ -170,12 +170,20 @@ class CommandHandler:
             )
         ))
 
-    def _change_follow_add(self):
+    def _assistance_item_followup_add(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
         additional = self._normalize_additional(self.arguments.get("additional"))
         is_private = self._get_bool_argument("is_private", False)
-        return self._run_operation("Error adding change comment", lambda: self._wrap_result(
-            glpi_changes.add_followup(
-                change_id=self._get_argument_alias("change_id"),
+        if not itemtype or item_id is None:
+            return self._error(
+                "Los parametros 'itemtype' e 'id' son obligatorios para assistance_item_followup_add.",
+                error_type="validation_error",
+            )
+        return self._run_operation("Error adding assistance item followup", lambda: self._wrap_result(
+            glpi_assistance.add_assistance_followup(
+                itemtype=itemtype,
+                item_id=item_id,
                 content=self.arguments.get("content"),
                 is_private=is_private,
                 additional_fields=additional,
@@ -231,20 +239,6 @@ class CommandHandler:
                 itemtype=itemtype,
                 item_id=item_id,
                 groups=groups,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _ticket_follow_add(self):
-        additional = self._normalize_additional(self.arguments.get("additional"))
-        is_private = self._get_bool_argument("is_private", False)
-        return self._run_operation("Error adding ticket comment", lambda: self._wrap_result(
-            glpi_tickets.add_followup(
-                ticket_id=self._get_argument_alias("ticket_id"),
-                content=self.arguments.get("content"),
-                is_private=is_private,
-                additional_fields=additional,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )

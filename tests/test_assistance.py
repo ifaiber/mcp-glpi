@@ -153,3 +153,74 @@ def test_assign_assistance_groups_switches_profile_before_entity(monkeypatch):
     assistance.assign_assistance_groups("Ticket", 10, {"groups_id": 5}, entity_id=11, profile_id=24)
 
     assert calls == [("profile", 24), ("entity", 11)]
+
+
+def test_add_assistance_followup_rejects_unsupported_itemtype():
+    with pytest.raises(ValueError, match="itemtype"):
+        assistance.add_assistance_followup("Computer", 1, "hola")
+
+
+def test_add_assistance_followup_uses_generic_itemtype_items_id_shape(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_DummyHandlerBase):
+        def add_items(self, item_type, payload):
+            captured["item_type"] = item_type
+            captured["payload"] = payload
+            return {"id": 1}
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    # Matches the GLPI payload shape the user pointed at: itemtype/items_id/content/is_private.
+    result = assistance.add_assistance_followup(
+        "Change", 2620, "pruebas de ticketssss", is_private=0
+    )
+
+    assert captured["item_type"] == "ITILFollowup"
+    assert captured["payload"] == {
+        "itemtype": "Change",
+        "items_id": 2620,
+        "content": "pruebas de ticketssss",
+        "is_private": False,
+    }
+    assert result.action == "assistance_item_followup_add"
+    assert result.entity_id_field == "id"
+    assert result.entity_id == 2620
+
+
+def test_add_assistance_followup_uses_ticket_itemtype(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_DummyHandlerBase):
+        def add_items(self, item_type, payload):
+            captured["item_type"] = item_type
+            captured["payload"] = payload
+            return {"id": 1}
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    assistance.add_assistance_followup("Ticket", 10, "hola")
+
+    assert captured["item_type"] == "ITILFollowup"
+    assert captured["payload"]["itemtype"] == "Ticket"
+    assert captured["payload"]["items_id"] == 10
+
+
+def test_add_assistance_followup_switches_profile_before_entity(monkeypatch):
+    calls = []
+
+    class DummyHandler(_DummyHandlerBase):
+        def change_active_profile(self, profile_id):
+            calls.append(("profile", profile_id))
+
+        def change_active_entity(self, entity_id):
+            calls.append(("entity", entity_id))
+
+        def add_items(self, item_type, payload):
+            return {"id": 1}
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    assistance.add_assistance_followup("Ticket", 10, "hola", entity_id=11, profile_id=24)
+
+    assert calls == [("profile", 24), ("entity", 11)]
