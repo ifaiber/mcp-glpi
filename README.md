@@ -40,12 +40,10 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 | `change_add` | Crea un cambio; soporta campos adicionales. |
 | `ticket_follow_add` | Agrega un comentario (seguimiento) a un ticket. |
 | `ticket_solution_add` | Registra una solucion de ticket. |
-| `ticket_user_assign` | Asigna usuarios a un ticket. |
-| `ticket_group_assign` | Asigna grupos a un ticket. |
 | `change_follow_add` | Agrega un comentario (seguimiento) a un cambio. |
 | `change_solution_add` | Registra una solucion de cambio. |
-| `change_user_assign` | Asigna usuarios a un cambio. |
-| `change_group_assign` | Asigna grupos a un cambio. |
+| `assistance_item_user_add` | Asigna usuarios a un Ticket o Change (itemtype indica cual). |
+| `assistance_item_group_add` | Asigna grupos a un Ticket o Change (itemtype indica cual). |
 | `change_ticket_link` | Vincula un ticket existente a un cambio. |
 | `ticket_change_link` | Vincula un cambio existente a un ticket. |
 | `change_ticket_unlink` | Elimina la relacion Change_Ticket desde un cambio. |
@@ -88,6 +86,20 @@ Ademas de las herramientas especificas, hay herramientas de acceso **generico** 
 - `file_link(document_id, item_type, item_id, ...)` / `file_unlink(document_id, link_id, ...)`: crean/eliminan la relacion `Document_Item` entre un documento y **cualquier itemtype de GLPI** (no solo Ticket/Change) — GLPI valida si ese itemtype/permiso acepta el vinculo.
 
 Las cuatro aceptan los mismos `entity_id`/`profile_id` opcionales que el resto de las herramientas.
+
+### Asignar usuarios/grupos (`assistance_item_user_add` / `assistance_item_group_add`)
+
+`ticket_user_assign`/`change_user_assign` y `ticket_group_assign`/`change_group_assign` se reemplazaron por dos herramientas genericas, porque cada par era identico salvo el campo GLPI (`tickets_id` vs `changes_id`) y el subtype (`Ticket_User`/`Change_User`, `Group_Ticket`/`Change_Group`). Ambas reciben `itemtype` (unicamente `"Ticket"` o `"Change"`, valida contra esos dos valores), `id` y `users`/`groups`, y arman el campo/subtype correcto internamente:
+
+```json
+{"itemtype":"Change","id":2620,"users":{"users_id":18,"type":1,"use_notification":0}}
+```
+
+```json
+{"itemtype":"Ticket","id":2079,"groups":{"groups_id":5,"type":1,"use_notification":0}}
+```
+
+Esto envia a GLPI `POST Change_User`/`POST Group_Ticket` con `{"input":[{"changes_id":2620,"users_id":18,"type":1,"use_notification":0}]}` / `{"input":[{"tickets_id":2079,"groups_id":5,"type":1,"use_notification":0}]}` respectivamente.
 
 Todas las herramientas que operan sobre un ticket o cambio (creacion, listados, comentarios, soluciones, asignaciones, enlaces, actualizacion y borrado) aceptan dos parametros opcionales:
 

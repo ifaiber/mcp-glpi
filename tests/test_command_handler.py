@@ -8,6 +8,7 @@ from mcp_glpi.glpi import tickets as glpi_tickets
 from mcp_glpi.glpi import changes as glpi_changes
 from mcp_glpi.glpi import generic as glpi_generic
 from mcp_glpi.glpi import files as glpi_files
+from mcp_glpi.glpi import assistance as glpi_assistance
 
 
 class DummyResult:
@@ -832,3 +833,77 @@ def test_file_unlink_forwards_arguments(monkeypatch):
     assert captured['document_id'] == 1
     assert captured['link_id'] == 9
     assert captured['purge'] is True
+
+
+def test_assistance_item_user_add_requires_itemtype_and_id():
+    response = CommandHandler('assistance_item_user_add', {'users': {'users_id': 5}}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_assistance_item_user_add_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_assign_assistance_users(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Assigned 1 user(s) to Change 2620',
+            payload={'id': 2620, 'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_assistance, 'assign_assistance_users', fake_assign_assistance_users)
+
+    response = CommandHandler(
+        'assistance_item_user_add',
+        {
+            'itemtype': 'Change',
+            'id': 2620,
+            'users': {'users_id': 18, 'type': 1, 'use_notification': 0},
+            'entity_id': '6',
+        },
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['itemtype'] == 'Change'
+    assert captured['item_id'] == 2620
+    assert captured['users'] == {'users_id': 18, 'type': 1, 'use_notification': 0}
+    assert captured['entity_id'] == 6
+
+
+def test_assistance_item_group_add_requires_itemtype_and_id():
+    response = CommandHandler('assistance_item_group_add', {'groups': {'groups_id': 5}}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_assistance_item_group_add_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_assign_assistance_groups(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Assigned 1 group(s) to Ticket 2079',
+            payload={'id': 2079, 'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_assistance, 'assign_assistance_groups', fake_assign_assistance_groups)
+
+    response = CommandHandler(
+        'assistance_item_group_add',
+        {
+            'itemtype': 'Ticket',
+            'id': 2079,
+            'groups': {'groups_id': 5, 'type': 1, 'use_notification': 0},
+            'entity_id': '6',
+        },
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['itemtype'] == 'Ticket'
+    assert captured['item_id'] == 2079
+    assert captured['groups'] == {'groups_id': 5, 'type': 1, 'use_notification': 0}
+    assert captured['entity_id'] == 6

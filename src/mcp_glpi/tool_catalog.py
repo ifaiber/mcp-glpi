@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 
 import mcp.types as types
 
+from .glpi.assistance import ASSISTANCE_ITEMTYPES
 from .glpi.generic import ITEMTYPE_CATALOG
 
 
@@ -448,26 +449,35 @@ def _actors_property(actor_schema: Dict[str, Any], label: str) -> Dict[str, Any]
     }
 
 
-def _assignment_schema(
-    item_field: str,
-    item_label: str,
+def _assistance_assignment_schema(
+    actor_id_field: str,
+    actor_label: str,
     actors_key: str,
-    actor_schema: Dict[str, Any],
-    description: str,
+    subtype_hint: str,
 ) -> Dict[str, Any]:
+    actor_schema = _actor_schema(actor_id_field, actor_label)
     return {
         "type": "object",
         "properties": {
-            item_field: {
+            "itemtype": {
+                "type": "string",
+                "enum": sorted(ASSISTANCE_ITEMTYPES.keys()),
+                "description": f"Itemtype al que se asignan los {actors_key} (Ticket o Change).",
+            },
+            "id": {
                 "type": ["integer", "string"],
-                "description": f"Identificador del {item_label}",
+                "description": "Identificador del Ticket o Change segun 'itemtype'.",
             },
             actors_key: _actors_property(actor_schema, f"Listado de {actors_key} a asignar"),
             "entity_id": _entity_id_property,
             "profile_id": _profile_id_property,
         },
-        "required": [item_field, actors_key],
-        "description": description,
+        "required": ["itemtype", "id", actors_key],
+        "description": (
+            f"Parametros para asignar {actors_key} a un Ticket o Change. El campo "
+            f"GLPI (tickets_id/changes_id) y el subtype ({subtype_hint}) "
+            "se derivan automaticamente de 'itemtype'."
+        ),
     }
 
 
@@ -723,28 +733,30 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="_ticket_solution_add",
     ),
     ToolSpec(
-        name="ticket_user_assign",
-        description="Asigna usuarios a un ticket",
-        input_schema=_assignment_schema(
-            "ticket_id",
-            "ticket",
-            "users",
-            _actor_schema("users_id", "usuario"),
-            "Parametros para asignar usuarios a un ticket",
+        name="assistance_item_user_add",
+        description=(
+            "Asigna usuarios a un Ticket o Change (Ticket_User/Change_User). "
+            "Reemplaza a ticket_user_assign/change_user_assign: itemtype "
+            "decide internamente el campo (tickets_id/changes_id) y el "
+            "subtype (Ticket_User/Change_User) correctos."
         ),
-        handler_name="_ticket_user_assign",
+        input_schema=_assistance_assignment_schema(
+            "users_id", "usuario", "users", "Ticket_User/Change_User"
+        ),
+        handler_name="_assistance_item_user_add",
     ),
     ToolSpec(
-        name="ticket_group_assign",
-        description="Asigna grupos a un ticket",
-        input_schema=_assignment_schema(
-            "ticket_id",
-            "ticket",
-            "groups",
-            _actor_schema("groups_id", "grupo"),
-            "Parametros para asignar grupos a un ticket",
+        name="assistance_item_group_add",
+        description=(
+            "Asigna grupos a un Ticket o Change (Group_Ticket/Change_Group). "
+            "Reemplaza a ticket_group_assign/change_group_assign: itemtype "
+            "decide internamente el campo (tickets_id/changes_id) y el "
+            "subtype (Group_Ticket/Change_Group) correctos."
         ),
-        handler_name="_ticket_group_assign",
+        input_schema=_assistance_assignment_schema(
+            "groups_id", "grupo", "groups", "Group_Ticket/Change_Group"
+        ),
+        handler_name="_assistance_item_group_add",
     ),
     ToolSpec(
         name="change_follow_add",
@@ -757,30 +769,6 @@ TOOL_SPECS: List[ToolSpec] = [
         description="Registra una solucion para un cambio",
         input_schema=_solution_schema("change_id", "cambio"),
         handler_name="_change_solution_add",
-    ),
-    ToolSpec(
-        name="change_user_assign",
-        description="Asigna usuarios a un cambio",
-        input_schema=_assignment_schema(
-            "change_id",
-            "cambio",
-            "users",
-            _actor_schema("users_id", "usuario"),
-            "Parametros para asignar usuarios a un cambio",
-        ),
-        handler_name="_change_user_assign",
-    ),
-    ToolSpec(
-        name="change_group_assign",
-        description="Asigna grupos a un cambio",
-        input_schema=_assignment_schema(
-            "change_id",
-            "cambio",
-            "groups",
-            _actor_schema("groups_id", "grupo"),
-            "Parametros para asignar grupos a un cambio",
-        ),
-        handler_name="_change_group_assign",
     ),
     ToolSpec(
         name="change_ticket_link",

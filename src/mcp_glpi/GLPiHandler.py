@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import mcp.types as types
 from mcp_glpi.common.config import get_config
+from mcp_glpi.glpi import assistance as glpi_assistance
 from mcp_glpi.glpi import changes as glpi_changes
 from mcp_glpi.glpi import files as glpi_files
 from mcp_glpi.glpi import generic as glpi_generic
@@ -197,22 +198,38 @@ class CommandHandler:
             )
         ))
 
-    def _change_user_assign(self):
+    def _assistance_item_user_add(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
         users = self._get_collection_alias("users")
-        return self._run_operation("Error assigning change users", lambda: self._wrap_result(
-            glpi_changes.assign_change_users(
-                change_id=self._get_argument_alias("change_id"),
+        if not itemtype or item_id is None:
+            return self._error(
+                "Los parametros 'itemtype' e 'id' son obligatorios para assistance_item_user_add.",
+                error_type="validation_error",
+            )
+        return self._run_operation("Error assigning assistance item users", lambda: self._wrap_result(
+            glpi_assistance.assign_assistance_users(
+                itemtype=itemtype,
+                item_id=item_id,
                 users=users,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )
         ))
 
-    def _change_group_assign(self):
+    def _assistance_item_group_add(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
         groups = self._get_collection_alias("groups")
-        return self._run_operation("Error assigning change groups", lambda: self._wrap_result(
-            glpi_changes.assign_change_groups(
-                change_id=self._get_argument_alias("change_id"),
+        if not itemtype or item_id is None:
+            return self._error(
+                "Los parametros 'itemtype' e 'id' son obligatorios para assistance_item_group_add.",
+                error_type="validation_error",
+            )
+        return self._run_operation("Error assigning assistance item groups", lambda: self._wrap_result(
+            glpi_assistance.assign_assistance_groups(
+                itemtype=itemtype,
+                item_id=item_id,
                 groups=groups,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
@@ -242,28 +259,6 @@ class CommandHandler:
                 content=self.arguments.get("content"),
                 solution_type_id=solution_type_id,
                 additional_fields=additional,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _ticket_user_assign(self):
-        users = self._get_collection_alias("users")
-        return self._run_operation("Error assigning ticket users", lambda: self._wrap_result(
-            glpi_tickets.assign_ticket_users(
-                ticket_id=self._get_argument_alias("ticket_id"),
-                users=users,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _ticket_group_assign(self):
-        groups = self._get_collection_alias("groups")
-        return self._run_operation("Error assigning ticket groups", lambda: self._wrap_result(
-            glpi_tickets.assign_ticket_groups(
-                ticket_id=self._get_argument_alias("ticket_id"),
-                groups=groups,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )

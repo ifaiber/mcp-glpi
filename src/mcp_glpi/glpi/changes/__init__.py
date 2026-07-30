@@ -1,6 +1,5 @@
 """Change facade exports."""
 
-from .assignments import assign_change_groups, assign_change_users
 from .comments import add_followup
 from .common import (
     DEFAULT_FIELDS,
@@ -36,8 +35,6 @@ __all__ = [
     "add_followup",
     "add_solution",
     "all_changes",
-    "assign_change_groups",
-    "assign_change_users",
     "create_change",
     "delete_change",
     "fetch_changes",

@@ -1,6 +1,5 @@
 """Ticket facade exports."""
 
-from .assignments import assign_ticket_groups, assign_ticket_users
 from .comments import add_followup
 from .common import (
     DEFAULT_FIELDS,
@@ -36,8 +35,6 @@ __all__ = [
     "add_followup",
     "add_solution",
     "all_tickets",
-    "assign_ticket_groups",
-    "assign_ticket_users",
     "create_ticket",
     "delete_ticket",
     "fetch_tickets",
