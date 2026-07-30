@@ -79,6 +79,172 @@ def test_entity_list_uses_session_module(monkeypatch):
     }
 
 
+_SAMPLE_PROFILES = [
+    {
+        'id': 22,
+        'name': 'Administrativo - Solicitante',
+        'entities': [
+            {'id': 2, 'name': 'Administrativo', 'is_recursive': True},
+        ],
+    },
+    {
+        'id': 24,
+        'name': 'Desarrollador',
+        'entities': [
+            {'id': 6, 'name': 'Desarrollo', 'is_recursive': False},
+            {'id': 9, 'name': 'QA', 'is_recursive': False},
+        ],
+    },
+]
+
+
+def test_resolve_profile_name_switches_and_picks_first_entity(monkeypatch):
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', lambda: _SAMPLE_PROFILES)
+    captured = {}
+
+    def fake_all_tickets(**kwargs):
+        captured.update(kwargs)
+        return [{'id': 1}]
+
+    monkeypatch.setattr(glpi_tickets, 'all_tickets', fake_all_tickets)
+
+    response = CommandHandler('ticket_list', {'profile_id': 'Desarrollador'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['profile_id'] == 24
+    assert captured['entity_id'] == 6
+    notes = payload['resolution_notes']
+    assert any('Desarrollador' in n for n in notes)
+    assert any('Desarrollo' in n for n in notes)
+
+
+def test_resolve_entity_name_finds_profile_and_entity(monkeypatch):
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', lambda: _SAMPLE_PROFILES)
+    captured = {}
+
+    def fake_all_tickets(**kwargs):
+        captured.update(kwargs)
+        return [{'id': 1}]
+
+    monkeypatch.setattr(glpi_tickets, 'all_tickets', fake_all_tickets)
+
+    response = CommandHandler('ticket_list', {'entity_id': 'QA'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['entity_id'] == 9
+    assert captured['profile_id'] == 24
+    assert 'resolution_notes' in payload
+
+
+def test_resolve_entity_name_scoped_to_given_numeric_profile(monkeypatch):
+    # 'QA' exists both under profile 24 and under profile 30 in this test;
+    # an explicit numeric profile_id must scope the entity-name search.
+    profiles = _SAMPLE_PROFILES + [
+        {'id': 30, 'name': 'Otro perfil', 'entities': [{'id': 40, 'name': 'QA', 'is_recursive': False}]},
+    ]
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', lambda: profiles)
+    captured = {}
+
+    def fake_all_tickets(**kwargs):
+        captured.update(kwargs)
+        return [{'id': 1}]
+
+    monkeypatch.setattr(glpi_tickets, 'all_tickets', fake_all_tickets)
+
+    response = CommandHandler('ticket_list', {'entity_id': 'QA', 'profile_id': 24}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['entity_id'] == 9
+    assert captured['profile_id'] == 24
+
+
+def test_resolve_entity_name_ambiguous_is_validation_error(monkeypatch):
+    profiles = _SAMPLE_PROFILES + [
+        {'id': 30, 'name': 'Otro perfil', 'entities': [{'id': 40, 'name': 'QA', 'is_recursive': False}]},
+    ]
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', lambda: profiles)
+
+    response = CommandHandler('ticket_list', {'entity_id': 'QA'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+    assert 'ambiguo' in payload['error']['message']
+
+
+def test_resolve_profile_name_ambiguous_is_validation_error(monkeypatch):
+    profiles = _SAMPLE_PROFILES + [
+        {'id': 31, 'name': 'Desarrollador', 'entities': []},
+    ]
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', lambda: profiles)
+
+    response = CommandHandler('ticket_list', {'profile_id': 'Desarrollador'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+    assert 'ambiguo' in payload['error']['message']
+
+
+def test_resolve_profile_name_not_found_is_validation_error(monkeypatch):
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', lambda: _SAMPLE_PROFILES)
+
+    response = CommandHandler('ticket_list', {'profile_id': 'No Existe'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+    assert 'No se encontro el perfil' in payload['error']['message']
+
+
+def test_resolve_entity_name_not_found_is_validation_error(monkeypatch):
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', lambda: _SAMPLE_PROFILES)
+
+    response = CommandHandler('ticket_list', {'entity_id': 'No Existe'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+    assert 'No se encontro la entidad' in payload['error']['message']
+
+
+def test_resolve_profile_name_without_entities_is_validation_error(monkeypatch):
+    profiles = [{'id': 50, 'name': 'Sin Entidades', 'entities': []}]
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', lambda: profiles)
+
+    response = CommandHandler('ticket_list', {'profile_id': 'Sin Entidades'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+    assert 'no tiene entidades' in payload['error']['message']
+
+
+def test_numeric_entity_and_profile_id_do_not_trigger_name_resolution(monkeypatch):
+    def boom():
+        raise AssertionError('get_my_profiles_data should not be called for numeric ids')
+
+    monkeypatch.setattr(glpi_session, 'get_my_profiles_data', boom)
+    captured = {}
+
+    def fake_all_tickets(**kwargs):
+        captured.update(kwargs)
+        return [{'id': 1}]
+
+    monkeypatch.setattr(glpi_tickets, 'all_tickets', fake_all_tickets)
+
+    response = CommandHandler('ticket_list', {'entity_id': '6', 'profile_id': '24'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['entity_id'] == 6
+    assert captured['profile_id'] == 24
+    assert 'resolution_notes' not in payload
+
+
 def test_ticket_delete_requires_ticket_id():
     response = CommandHandler('ticket_delete', {}).execute()
     payload = _extract_json(response)

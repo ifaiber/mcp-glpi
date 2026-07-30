@@ -101,6 +101,8 @@ Todas las herramientas que operan sobre un ticket o cambio (creacion, listados, 
 
 Si se omiten (o llegan vacios/`null`), se usan el perfil/entidad activos por defecto de la sesion sin fallar. Cuando se indican ambos en la misma llamada, **el perfil se cambia primero** y luego la entidad: **el perfil activo determina los permisos (crear/leer/editar) con los que se ejecuta la operacion; la entidad activa solo determina sobre que registros se opera**. En GLPI, las entidades a las que un usuario tiene acceso estan asociadas a sus perfiles (ver la respuesta de `profile_list`) — para operar correctamente sobre una entidad que pertenece a un perfil distinto al activo, pase tambien `profile_id`.
 
+Ambos parametros tambien aceptan el **nombre** de la entidad/perfil (texto no numerico) en vez del id: se resuelve automaticamente consultando `profile_list` internamente, y si solo se da el nombre del perfil (sin entidad), se selecciona la primera entidad de ese perfil. La respuesta incluye un campo `resolution_notes` cuando esto ocurre. Un nombre ambiguo (coincide con mas de un perfil/entidad) o inexistente devuelve un error de validacion en vez de adivinar. Ver el recurso `mcp-glpi://docs/glpi-entity-profile-resolution` para el detalle completo.
+
 Como cada llamada MCP abre y cierra su propia sesion GLPI, el cambio de entidad/perfil aplica solo a esa llamada puntual; no persiste para llamadas posteriores.
 
 **Importante**: GLPI responde `HTTP 200` con cuerpo `false` (no un error HTTP) cuando la entidad o el perfil indicados no son accesibles para el usuario/token, o no existen. Cualquier herramienta invocada con `entity_id`/`profile_id` detecta este caso y devuelve un error explicito en vez de fallar en silencio; si obtenes ese error, revisa que el `entity_id`/`profile_id` este entre los que devuelve `entity_list`/`profile_list`.
@@ -139,6 +141,7 @@ Recursos publicados hoy (separados por tema para poder cargar solo el que aplica
 |-----|--------|-----------|
 | `mcp-glpi://docs/glpi-items` | `glpi-items` | Herramientas **genericas**: descubrir itemtype/subtype (`item_type_list`/`item_subtype_list`), listar/consultar/eliminar de forma generica (`item_list`/`item_get`/`item_delete`) y listar sub-elementos (`item_subitem_list`), con su matriz de rutas/capacidades. |
 | `mcp-glpi://docs/glpi-tools` | `glpi-tools` | Herramientas **especificas** de tickets/cambios (crear, actualizar, eliminar, seguimientos, soluciones, asignaciones, relaciones) y de archivos (`file_upload`/`file_download`/`file_link`/`file_unlink`), con su matriz de rutas/capacidades. |
+| `mcp-glpi://docs/glpi-entity-profile-resolution` | `glpi-entity-profile-resolution` | Que pasa cuando `entity_id`/`profile_id` se dan como **nombre** en vez de id: resolucion automatica, seleccion de la primera entidad de un perfil, y manejo de nombres ambiguos/inexistentes. |
 
 Para agregar un recurso nuevo: colocar el archivo en `src/mcp_glpi/resources/`, agregar una entrada a `RESOURCE_SPECS`, y (si es un patron de archivo nuevo, ej. `.json`) ajustar el glob en `[tool.setuptools.package-data]`.
 

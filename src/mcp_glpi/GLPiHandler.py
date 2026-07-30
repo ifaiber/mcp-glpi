@@ -1,7 +1,7 @@
 import html
 import json
 import logging
-from typing import Any, Callable, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import mcp.types as types
 from mcp_glpi.common.config import get_config
@@ -35,15 +35,27 @@ class CommandHandler:
         self.command = command
         self.arguments = arguments or {}
         self.config = get_config()
+        self._resolved_entity_id: Optional[int] = None
+        self._resolved_profile_id: Optional[int] = None
+        self._resolution_notes: List[str] = []
 
     def execute(self):
         handler_name = COMMAND_HANDLERS.get(self.command)
-        if handler_name is not None:
-            return getattr(self, handler_name)()
-        return self._error(
-            f"Herramienta desconocida: {self.command}",
-            error_type="unknown_command",
-        )
+        if handler_name is None:
+            return self._error(
+                f"Herramienta desconocida: {self.command}",
+                error_type="unknown_command",
+            )
+        try:
+            self._resolve_entity_and_profile()
+        except ValueError as exc:
+            return self._error(f"Invalid argument: {exc}", error_type="validation_error")
+        except Exception as exc:  # pragma: no cover - depends on remote API
+            logger.exception("Error resolving entity_id/profile_id")
+            return self._error(
+                f"Error resolving entity_id/profile_id: {exc}", error_type="runtime_error"
+            )
+        return getattr(self, handler_name)()
 
     def _session_validate(self):
         session_info = glpi_session.get_full_session_data()
@@ -741,30 +753,145 @@ class CommandHandler:
         return self._get_from_arguments(*ID_ALIASES[canonical_key])
 
     def _get_entity_id(self) -> Optional[int]:
-        value = self._get_from_arguments("entity_id", "entities_id")
-        if value is None:
-            return None
-        if isinstance(value, str) and not value.strip():
-            # Blank string means "no entity change requested", not an error.
-            return None
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            logger.warning("Invalid entity_id: %s. Ignoring.", value)
-            return None
+        return self._resolved_entity_id
 
     def _get_profile_id(self) -> Optional[int]:
-        value = self._get_from_arguments("profile_id", "profiles_id")
-        if value is None:
-            return None
-        if isinstance(value, str) and not value.strip():
-            # Blank string means "no profile change requested", not an error.
-            return None
+        return self._resolved_profile_id
+
+    @staticmethod
+    def _is_blank(value: Any) -> bool:
+        return value is None or (isinstance(value, str) and not value.strip())
+
+    @staticmethod
+    def _looks_numeric(value: Any) -> bool:
         try:
-            return int(value)
+            int(value)
+            return True
         except (TypeError, ValueError):
-            logger.warning("Invalid profile_id: %s. Ignoring.", value)
-            return None
+            return False
+
+    def _resolve_entity_and_profile(self) -> None:
+        """Resolve entity_id/profile_id for the current command.
+
+        Both are normally numeric ids. If either is given as a non-numeric,
+        non-blank string, it is treated as a *name* to look up via
+        ``get_my_profiles_data()`` (the same data ``profile_list`` exposes):
+
+        - Profile name only (no entity given): switch to that profile, then
+          fall back to the first entity in its entity list (since none was
+          requested), and record which one was auto-selected.
+        - Entity name only (no profile given): search every profile's
+          entities for a matching name and resolve both the profile and the
+          entity from whichever match is found.
+        - Ambiguous name (matches more than one profile/entity) or a name
+          that matches nothing raises ValueError, which the caller reports
+          as a validation error instead of guessing.
+
+        Numeric ids and blank/omitted values behave exactly as before.
+        """
+        raw_entity = self._get_from_arguments("entity_id", "entities_id")
+        raw_profile = self._get_from_arguments("profile_id", "profiles_id")
+
+        entity_blank = self._is_blank(raw_entity)
+        profile_blank = self._is_blank(raw_profile)
+        entity_is_name = not entity_blank and not self._looks_numeric(raw_entity)
+        profile_is_name = not profile_blank and not self._looks_numeric(raw_profile)
+
+        if not entity_is_name and not profile_is_name:
+            self._resolved_entity_id = None if entity_blank else int(raw_entity)
+            self._resolved_profile_id = None if profile_blank else int(raw_profile)
+            return
+
+        profiles = glpi_session.get_my_profiles_data()
+
+        resolved_profile: Optional[Dict[str, Any]] = None
+        resolved_entity_id = None if (entity_blank or entity_is_name) else int(raw_entity)
+        resolved_profile_id = None if (profile_blank or profile_is_name) else int(raw_profile)
+
+        if profile_is_name:
+            needle = str(raw_profile).strip().lower()
+            matches = [p for p in profiles if str(p.get("name", "")).strip().lower() == needle]
+            if not matches:
+                raise ValueError(
+                    f"No se encontro el perfil '{raw_profile}'. Use 'profile_list' para ver los "
+                    "perfiles disponibles."
+                )
+            if len(matches) > 1:
+                ids = [p.get("id") for p in matches]
+                raise ValueError(
+                    f"El nombre de perfil '{raw_profile}' es ambiguo: coincide con {len(matches)} "
+                    f"perfiles (ids {ids}). Use el id numerico del perfil para desambiguar."
+                )
+            resolved_profile = matches[0]
+            resolved_profile_id = resolved_profile.get("id")
+            self._resolution_notes.append(
+                f"profile_id: nombre de perfil '{raw_profile}' resuelto a id {resolved_profile_id}."
+            )
+
+            if entity_blank:
+                entities = resolved_profile.get("entities") or []
+                if not entities:
+                    raise ValueError(
+                        f"El perfil '{resolved_profile.get('name')}' (id {resolved_profile_id}) no "
+                        "tiene entidades asociadas."
+                    )
+                chosen = entities[0]
+                resolved_entity_id = chosen.get("id")
+                self._resolution_notes.append(
+                    "entity_id: no se indico; se selecciono automaticamente la primera entidad del "
+                    f"perfil '{resolved_profile.get('name')}': '{chosen.get('name')}' "
+                    f"(id {resolved_entity_id})."
+                )
+
+        if entity_is_name:
+            needle = str(raw_entity).strip().lower()
+            if resolved_profile is not None:
+                search_scope = [resolved_profile]
+            elif resolved_profile_id is not None:
+                search_scope = [p for p in profiles if p.get("id") == resolved_profile_id]
+            else:
+                search_scope = profiles
+
+            candidates = []
+            for profile in search_scope:
+                for entity in profile.get("entities") or []:
+                    if str(entity.get("name", "")).strip().lower() == needle:
+                        candidates.append((profile, entity))
+
+            if not candidates:
+                scope_msg = (
+                    f" dentro del perfil '{resolved_profile.get('name')}'" if resolved_profile else ""
+                )
+                raise ValueError(
+                    f"No se encontro la entidad '{raw_entity}'{scope_msg}. Use 'entity_list'/"
+                    "'profile_list' para ver las disponibles."
+                )
+            if len(candidates) > 1:
+                options = "; ".join(
+                    f"perfil '{p.get('name')}' (id {p.get('id')}) -> entidad id {e.get('id')}"
+                    for p, e in candidates
+                )
+                raise ValueError(
+                    f"El nombre de entidad '{raw_entity}' es ambiguo: coincide con {len(candidates)} "
+                    f"perfil(es)/entidad(es) ({options}). Indique 'profile_id' o el id numerico de la "
+                    "entidad para desambiguar."
+                )
+            matched_profile, matched_entity = candidates[0]
+            resolved_entity_id = matched_entity.get("id")
+            if resolved_profile_id is None:
+                resolved_profile_id = matched_profile.get("id")
+                self._resolution_notes.append(
+                    f"entity_id: nombre de entidad '{raw_entity}' resuelto al perfil "
+                    f"'{matched_profile.get('name')}' (id {resolved_profile_id}) y entidad id "
+                    f"{resolved_entity_id}."
+                )
+            else:
+                self._resolution_notes.append(
+                    f"entity_id: nombre de entidad '{raw_entity}' resuelto a id {resolved_entity_id}."
+                )
+
+        self._resolved_entity_id = resolved_entity_id
+        self._resolved_profile_id = resolved_profile_id
 
     def _get_collection_argument(self, primary: str, alternatives: Sequence[str]):
         value = self.arguments.get(primary)
@@ -868,6 +995,8 @@ class CommandHandler:
         }
         if summary is not None:
             payload["summary"] = summary
+        if self._resolution_notes:
+            payload["resolution_notes"] = list(self._resolution_notes)
         return self._json_response(payload)
 
     def _error(self, message: str, error_type: str = "error", details: Any = None):

@@ -27,7 +27,11 @@ _entity_id_property = {
         "Si se indica, cambia la entidad activa de la sesion antes de operar "
         "(equivalente a changeActiveEntities); si se omite, se usa la entidad "
         "activa por defecto de la sesion. Use 'entity_list' para obtener "
-        "los codigos disponibles."
+        "los codigos disponibles. Tambien acepta el *nombre* de la entidad "
+        "(texto no numerico): se busca entre las entidades del usuario y se "
+        "resuelve automaticamente a su id (ver el recurso "
+        "'mcp-glpi://docs/glpi-entity-profile-resolution' para el detalle "
+        "del algoritmo y los casos de ambiguedad)."
     ),
 }
 
@@ -42,7 +46,10 @@ _profile_id_property = {
         "por defecto de la sesion. Use 'profile_list' para ver los perfiles "
         "disponibles y sus entidades asociadas. Si vas a combinar "
         "'profile_id' y 'entity_id' en la misma llamada, el perfil se "
-        "cambia primero."
+        "cambia primero. Tambien acepta el *nombre* del perfil (texto no "
+        "numerico): se resuelve automaticamente a su id, y si no se indico "
+        "'entity_id' se selecciona la primera entidad de ese perfil (ver el "
+        "recurso 'mcp-glpi://docs/glpi-entity-profile-resolution')."
     ),
 }
 

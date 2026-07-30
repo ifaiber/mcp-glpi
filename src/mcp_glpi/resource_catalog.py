@@ -44,6 +44,20 @@ RESOURCE_SPECS: List[ResourceSpec] = [
         mime_type="text/markdown",
         path=RESOURCES_DIR / "glpi-tools.md",
     ),
+    ResourceSpec(
+        uri="mcp-glpi://docs/glpi-entity-profile-resolution",
+        name="glpi-entity-profile-resolution",
+        description=(
+            "Explica que pasa cuando 'entity_id'/'profile_id' se dan como "
+            "nombre en vez de id numerico: resolucion automatica via "
+            "profile_list, seleccion de la primera entidad de un perfil "
+            "cuando falta 'entity_id', busqueda de entidad entre perfiles "
+            "cuando falta 'profile_id', y manejo de nombres ambiguos o no "
+            "encontrados como error de validacion."
+        ),
+        mime_type="text/markdown",
+        path=RESOURCES_DIR / "glpi-entity-profile-resolution.md",
+    ),
 ]
 
 
