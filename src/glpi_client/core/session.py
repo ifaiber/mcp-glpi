@@ -83,13 +83,28 @@ class SessionManager(BaseHTTPHandler):
     def change_active_profile(self, profile_id: int) -> None:
         """Cambia el perfil activo."""
         r = self._do_method(
-            "post", 
-            "changeActiveProfile", 
-            data={"profiles_id": profile_id}, 
+            "post",
+            "changeActiveProfile",
+            data={"profiles_id": profile_id},
             on_error_raise=False
         )
         if r.status_code == 404:
             raise GLPIError("Profile not found")
+        if r.status_code >= 400:
+            raise GLPIRequestError(r)
+        # Same silent-rejection pattern as changeActiveEntities: GLPI can
+        # answer 200 with a bare `false` when the profile is not one of the
+        # user's own profiles, instead of an HTTP error.
+        try:
+            result = r.json()
+        except JSONDecodeError:
+            result = None
+        if result is False:
+            raise GLPIError(
+                f"GLPI rejected changing to profile {profile_id}: it is not "
+                "one of this user's profiles (check getMyProfiles) or the id "
+                "does not exist."
+            )
 
     def get_my_entities(self, recursive: bool = False) -> List[Dict[str, Any]]:
         """Retorna todas las entidades del usuario actual."""
@@ -101,16 +116,35 @@ class SessionManager(BaseHTTPHandler):
         """Retorna las entidades activas del usuario actual."""
         return self._get_json("getActiveEntities")["active_entity"]
 
-    def change_active_entity(self, entity_id: int):
+    def change_active_entity(self, entity_id: int, is_recursive: Optional[bool] = None):
         """Cambia la entidad activa."""
+        data: Dict[str, Any] = {"entities_id": entity_id}
+        if is_recursive is not None:
+            data["is_recursive"] = is_recursive
         r = self._do_method(
             "post",
-            "changeActiveEntities", 
-            data={"entities_id": entity_id}, 
+            "changeActiveEntities",
+            data=data,
             on_error_raise=False
         )
         if r.status_code == 400:
             raise GLPIError(r.json()[1])
+        if r.status_code >= 400:
+            raise GLPIRequestError(r)
+        # GLPI answers 200 with a bare JSON boolean: `true` on success, `false`
+        # when the entity is rejected (not among getMyEntities, wrong id,
+        # missing recursive rights, etc). A `false` body is NOT an HTTP error,
+        # so it must be checked explicitly or the switch fails silently.
+        try:
+            result = r.json()
+        except JSONDecodeError:
+            result = None
+        if result is False:
+            raise GLPIError(
+                f"GLPI rejected changing to entity {entity_id}: it is not "
+                "accessible for this user/token (check getMyEntities) or the "
+                "id does not exist."
+            )
 
     def get_full_session(self) -> Dict[str, Any]:
         """Retorna la sesión PHP completa."""

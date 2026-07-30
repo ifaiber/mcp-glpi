@@ -1,7 +1,7 @@
 """Ticket facade exports."""
 
 from .assignments import assign_ticket_groups, assign_ticket_users
-from .comments import add_followup
+from .comments import add_followup, list_followups
 from .common import (
     DEFAULT_FIELDS,
     GLPIRequestHandler,
@@ -19,7 +19,7 @@ from .create import create_ticket
 from .delete import delete_ticket
 from .links import link_change, unlink_change
 from .read import all_tickets, fetch_tickets, list_tickets_as_table
-from .solutions import add_solution
+from .solutions import add_solution, list_solutions
 from .update import update_ticket
 
 __all__ = [
@@ -42,6 +42,8 @@ __all__ = [
     "delete_ticket",
     "fetch_tickets",
     "link_change",
+    "list_followups",
+    "list_solutions",
     "list_tickets_as_table",
     "unlink_change",
     "update_ticket",

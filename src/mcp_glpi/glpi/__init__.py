@@ -1,3 +1,3 @@
-from . import changes, session, tickets
+from . import changes, files, generic, session, tickets
 
-__all__ = ["changes", "session", "tickets"]
+__all__ = ["changes", "files", "generic", "session", "tickets"]

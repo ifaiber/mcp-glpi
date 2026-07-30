@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-glpi"
-version = "2.0.0"
+version = "4.0.0"
 description = "Servidor MCP de pruebas para testing y desarrollo"
 authors = [
     {name = "Faiber alvarado", email = "faiber.alvarado@ideasfractal.com"}
@@ -34,6 +34,9 @@ mcp_glpi = "mcp_glpi.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+mcp_glpi = ["resources/*.md"]
 
 [tool.black]
 line-length = 88

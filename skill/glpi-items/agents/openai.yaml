@@ -1,0 +1,4 @@
+interface:
+  display_name: "GLPI Items"
+  short_description: "Gestiona elementos GLPI con item_list, item_get e item_delete."
+  default_prompt: "Usa $glpi-items para consultar, identificar o eliminar elementos de GLPI."

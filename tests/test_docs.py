@@ -32,8 +32,8 @@ def test_create_and_update_change_schema_expose_pr_links():
         tool = next(t for t in tools.tools if t.name == name)
         return tool.inputSchema
 
-    create_schema = get_tool_schema('create_change')
-    update_schema = get_tool_schema('update_change')
+    create_schema = get_tool_schema('change_add')
+    update_schema = get_tool_schema('change_update')
 
     for schema in (create_schema, update_schema):
         properties = schema['properties']

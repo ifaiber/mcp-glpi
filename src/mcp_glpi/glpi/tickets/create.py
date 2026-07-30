@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Dict, Optional, Union
 
-from ..shared import merge_non_null_values, normalize_enum_value
+from ..shared import (
+    merge_non_null_values,
+    normalize_enum_value,
+    switch_active_entity,
+    switch_active_profile,
+)
 from .common import (
     IMPACT_LABELS,
     PRIORITY_LABELS,
@@ -26,6 +31,7 @@ def create_ticket(
     urgency: Optional[Union[int, str]] = None,
     category_id: Optional[int] = None,
     entity_id: Optional[int] = None,
+    profile_id: Optional[int] = None,
     additional_fields: Optional[Dict[str, object]] = None,
 ) -> TicketCreationResult:
     if not name or not name.strip():
@@ -57,6 +63,8 @@ def create_ticket(
     merge_non_null_values(payload, additional_fields)
 
     with open_handler() as handler:
+        switch_active_profile(handler, profile_id)
+        switch_active_entity(handler, entity_id)
         response = handler.create_ticket(**payload)
 
     return TicketCreationResult(payload=payload, response=response)

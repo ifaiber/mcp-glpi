@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union
 
-from ..shared import compact_payload, ensure_positive_int, normalize_actor_entries
+from ..shared import (
+    compact_payload,
+    ensure_positive_int,
+    normalize_actor_entries,
+    switch_active_entity,
+    switch_active_profile,
+)
 from .common import TicketMutationResult, open_handler
 
 
 def assign_ticket_users(
     ticket_id: Any,
     users: Union[Dict[str, Any], Sequence[Any], Any],
+    *,
+    entity_id: Optional[int] = None,
+    profile_id: Optional[int] = None,
 ) -> TicketMutationResult:
     ticket_id_int = ensure_positive_int(ticket_id, "ticket_id")
     normalized = normalize_actor_entries(
@@ -23,10 +32,12 @@ def assign_ticket_users(
     payload_to_send = compact_payload(normalized)
 
     with open_handler() as handler:
+        switch_active_profile(handler, profile_id)
+        switch_active_entity(handler, entity_id)
         response = handler.add_items("Ticket_User", payload_to_send)
 
     return TicketMutationResult(
-        action="assign_ticket_users",
+        action="ticket_user_assign",
         ticket_id=ticket_id_int,
         description=f"Assigned {len(normalized)} user(s) to ticket {ticket_id_int}",
         payload=payload_to_send,
@@ -37,6 +48,9 @@ def assign_ticket_users(
 def assign_ticket_groups(
     ticket_id: Any,
     groups: Union[Dict[str, Any], Sequence[Any], Any],
+    *,
+    entity_id: Optional[int] = None,
+    profile_id: Optional[int] = None,
 ) -> TicketMutationResult:
     ticket_id_int = ensure_positive_int(ticket_id, "ticket_id")
     normalized = normalize_actor_entries(
@@ -49,10 +63,12 @@ def assign_ticket_groups(
     payload_to_send = compact_payload(normalized)
 
     with open_handler() as handler:
+        switch_active_profile(handler, profile_id)
+        switch_active_entity(handler, entity_id)
         response = handler.add_items("Group_Ticket", payload_to_send)
 
     return TicketMutationResult(
-        action="assign_ticket_groups",
+        action="ticket_group_assign",
         ticket_id=ticket_id_int,
         description=f"Assigned {len(normalized)} group(s) to ticket {ticket_id_int}",
         payload=payload_to_send,
