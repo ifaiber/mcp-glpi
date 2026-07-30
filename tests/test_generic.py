@@ -24,14 +24,15 @@ class _NoRangeDummyHandler:
 def test_list_itemtypes_returns_catalog():
     result = generic.list_itemtypes()
     names = {entry['itemtype'] for entry in result}
-    assert names == {'Ticket', 'Change', 'Document'}
+    assert names == set(generic.ITEMTYPE_CATALOG.keys())
+    assert {'Ticket', 'Change', 'Document', 'Computer', 'Monitor', 'Software'} <= names
     assert all(entry['description'] for entry in result)
 
 
 def test_list_subtypes_without_filter_returns_all():
     result = generic.list_subtypes()
     itemtypes = {entry['itemtype'] for entry in result}
-    assert itemtypes == {'Ticket', 'Change'}
+    assert {'Ticket', 'Change', 'Computer', 'Monitor', 'Software', 'Project'} <= itemtypes
 
 
 def test_list_subtypes_includes_document_item_for_ticket_and_change():
@@ -64,7 +65,7 @@ def test_list_subtypes_rejects_unsupported_itemtype():
 
 def test_ensure_supported_itemtype_rejects_unknown():
     with pytest.raises(ValueError, match='Unsupported itemtype'):
-        generic.ensure_supported_itemtype('Computer')
+        generic.ensure_supported_itemtype('Config')
 
 
 def test_ensure_supported_subtype_rejects_wrong_combination():
@@ -266,6 +267,39 @@ def test_list_subitems_supports_document_item_under_ticket(monkeypatch):
     assert captured['itemtype'] == 'Ticket'
     assert captured['subtype'] == 'Document_Item'
     assert result['items'][0]['documents_id'] == 1
+
+
+def test_list_items_supports_asset_itemtypes(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_many_items(self, itemtype, **kwargs):
+            captured['itemtype'] = itemtype
+            return [{'id': 1, 'name': 'PC-01'}]
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    for itemtype in ('Computer', 'Monitor', 'Software'):
+        result = generic.list_items(itemtype)
+        assert captured['itemtype'] == itemtype
+        assert result['items'][0]['name'] == 'PC-01'
+
+
+def test_list_subitems_supports_computer_specific_subtypes(monkeypatch):
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_sub_items(self, itemtype, item_id, subtype, **kwargs):
+            return [{'id': 1}]
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    for subtype in ('Item_SoftwareVersion', 'ComputerAntivirus', 'ComputerVirtualMachine', 'Ticket'):
+        result = generic.list_subitems('Computer', 12, subtype)
+        assert result['items'] == [{'id': 1}]
+
+
+def test_list_subitems_rejects_computer_only_subtype_for_monitor():
+    with pytest.raises(ValueError, match='Unsupported subtype'):
+        generic.list_subitems('Monitor', 1, 'ComputerAntivirus')
 
 
 def test_delete_item_deletes_via_delete_items(monkeypatch):

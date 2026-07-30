@@ -4,11 +4,10 @@ Unlike the ticket/change-specific tools, this module lets a caller reach any
 *supported* GLPI itemtype (and, for sub-items, a supported itemtype/subtype
 pair) through one pair of tools instead of a hand-written tool per
 combination. ``ITEMTYPE_CATALOG`` is a deliberate allowlist: it only covers
-itemtypes/subtypes this server already understands elsewhere (tickets,
-changes, and their follow-ups/solutions/actors/links), so a caller can't
-reach unrelated GLPI data (User, Config, Computer, ...) that was never meant
-to be exposed here. Mostly read-only (list/get/list-subitems); `delete_item`
-is the one generic mutation, for the same supported itemtypes.
+itemtypes/subtypes verified against a real GLPI instance, so a caller can't
+reach arbitrary GLPI data (User, Config, Contract, ...) that was never
+verified/meant to be exposed here. Mostly read-only (list/get/list-subitems);
+`delete_item` is the one generic mutation, for the same supported itemtypes.
 """
 
 from __future__ import annotations
@@ -64,6 +63,76 @@ ITEMTYPE_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "Document": {
         "description": "Documentos (archivos) adjuntos en GLPI.",
+        "subtypes": {},
+    },
+    "Computer": {
+        "description": "Equipos de computo (activos) de GLPI.",
+        "subtypes": {
+            "Document_Item": "Documentos (archivos) vinculados al equipo.",
+            "Ticket": "Tickets relacionados con el equipo.",
+            "Item_SoftwareVersion": "Versiones de software instaladas en el equipo.",
+            "ComputerAntivirus": "Antivirus instalados en el equipo.",
+            "ComputerVirtualMachine": "Maquinas virtuales alojadas en el equipo.",
+        },
+    },
+    "Monitor": {
+        "description": "Monitores (activos) de GLPI.",
+        "subtypes": {
+            "Document_Item": "Documentos (archivos) vinculados al monitor.",
+            "Ticket": "Tickets relacionados con el monitor.",
+        },
+    },
+    "Software": {
+        "description": "Software (catalogo) de GLPI.",
+        "subtypes": {
+            "Document_Item": "Documentos (archivos) vinculados al software.",
+            "SoftwareVersion": "Versiones registradas del software.",
+        },
+    },
+    "SoftwareVersion": {
+        "description": "Versiones de software de GLPI.",
+        "subtypes": {},
+    },
+    "Project": {
+        "description": "Proyectos de GLPI.",
+        "subtypes": {
+            "Document_Item": "Documentos (archivos) vinculados al proyecto.",
+            "Ticket": "Tickets relacionados con el proyecto.",
+            "ProjectTask": "Tareas del proyecto.",
+        },
+    },
+    "ProjectTask": {
+        "description": "Tareas de proyecto de GLPI.",
+        "subtypes": {
+            "Document_Item": "Documentos (archivos) vinculados a la tarea.",
+            "Ticket": "Tickets relacionados con la tarea.",
+        },
+    },
+    "KnowbaseItem": {
+        "description": "Articulos de la base de conocimiento de GLPI.",
+        "subtypes": {
+            "Document_Item": "Documentos (archivos) vinculados al articulo.",
+            "Ticket": "Tickets relacionados con el articulo.",
+        },
+    },
+    "Reminder": {
+        "description": "Recordatorios (notas) de GLPI.",
+        "subtypes": {
+            "Document_Item": "Documentos (archivos) vinculados al recordatorio.",
+        },
+    },
+    "ContractType": {
+        "description": "Tipos de contrato de GLPI.",
+        "subtypes": {},
+    },
+    "Manufacturer": {
+        "description": "Fabricantes de GLPI.",
+        "subtypes": {
+            "Document_Item": "Documentos (archivos) vinculados al fabricante.",
+        },
+    },
+    "DeviceSimcard": {
+        "description": "Tarjetas SIM (componentes) de GLPI.",
         "subtypes": {},
     },
 }

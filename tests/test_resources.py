@@ -32,6 +32,12 @@ def test_glpi_items_resource_covers_generic_tools():
     assert "ticket_add" not in text
 
 
+def test_glpi_items_resource_covers_asset_itemtypes():
+    text = resource_catalog.read_resource_text("mcp-glpi://docs/glpi-items")
+    for itemtype in ("Computer", "Monitor", "Software", "Project", "KnowbaseItem"):
+        assert itemtype in text
+
+
 def test_glpi_tools_resource_covers_specific_tools():
     text = resource_catalog.read_resource_text("mcp-glpi://docs/glpi-tools")
     assert "ticket_add" in text

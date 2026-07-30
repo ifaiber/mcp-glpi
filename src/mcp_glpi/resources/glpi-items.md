@@ -1,6 +1,6 @@
 # Elementos genéricos de GLPI
 
-Usar `item_list`, `item_get`, `item_delete` e `item_subitem_list` para trabajar con elementos y sub-elementos genéricos de GLPI. Indicar siempre el `itemtype` con la capitalización de GLPI, por ejemplo `Ticket`, `Change` o `Document`.
+Usar `item_list`, `item_get`, `item_delete` e `item_subitem_list` para trabajar con elementos y sub-elementos genéricos de GLPI. Indicar siempre el `itemtype` con la capitalización de GLPI, por ejemplo `Ticket`, `Change`, `Document`, `Computer`, `Monitor` o `Software`.
 
 Estas herramientas son de **descubrimiento, consulta y eliminación genérica**. Cuando la operación necesite crear, actualizar, asignar, comentar, solucionar, relacionar o transferir archivos, usar las herramientas específicas `ticket_*`, `change_*` y `file_*` — ver el recurso `mcp-glpi://docs/glpi-tools`.
 
@@ -64,6 +64,12 @@ La eliminación normal envía el elemento a la papelera. Incluir `purge: true` s
 
 `item_delete` está disponible en el servidor. Sus parámetros obligatorios son `itemtype` e `id`.
 
+## Activos y gestión (`Computer`, `Monitor`, `Software`, ...)
+
+Además de `Ticket`/`Change`/`Document`, el catálogo soporta itemtypes de activos y gestión, verificados contra una instancia GLPI real: `Computer`, `Monitor`, `Software`, `SoftwareVersion`, `Project`, `ProjectTask`, `KnowbaseItem`, `Reminder`, `ContractType`, `Manufacturer`, `DeviceSimcard`. Se usan igual que `Ticket`/`Change` — mismo `item_list`/`item_get`/`item_delete`/`item_subitem_list`, mismo flujo de descubrimiento con `item_type_list`/`item_subtype_list`.
+
+`Computer` y `Monitor` en particular suelen requerir un perfil GLPI con derechos de inventario/activos, distinto del perfil de soporte que usa la sesión por defecto. Si `item_list`/`item_get` devuelven un error `403`/`ERROR_RIGHT_MISSING` para uno de estos itemtypes, volver a intentar pasando `profile_id` con un perfil que sí tenga esos derechos (por id o por nombre — ver el recurso `mcp-glpi://docs/glpi-entity-profile-resolution`); consultar `profile_list` para ver qué perfiles tiene el usuario.
+
 ## Matriz de rutas y capacidades
 
 Construir las rutas relativas sustituyendo `{id}` por el identificador obtenido. Las opciones `entity_id` y `profile_id` se pueden incluir en todas las herramientas de esta tabla salvo `item_type_list` e `item_subtype_list`.
@@ -75,6 +81,17 @@ Construir las rutas relativas sustituyendo `{id}` por el identificador obtenido.
 | Ticket | `item_list` · `item_get` · `item_delete` | `/Ticket` · `/Ticket/{id}` | `itemtype` obligatorio; `id` para get/delete. Listado: `limit`, `offset`, `sort_by`, `order`, `output`, `fields`, `filters`, `expand_dropdowns`, `include_deleted`. Delete: `purge`, `keep_history`. | Listar, consultar y eliminar tickets. | Crear o actualizar tickets. |
 | Change | `item_list` · `item_get` · `item_delete` | `/Change` · `/Change/{id}` | `itemtype` obligatorio; `id` para get/delete. Listado: `limit`, `offset`, `sort_by`, `order`, `output`, `fields`, `filters`, `expand_dropdowns`, `include_deleted`. Delete: `purge`, `keep_history`. | Listar, consultar y eliminar cambios. | Crear o actualizar cambios. |
 | Document | `item_list` · `item_get` · `item_delete` | `/Document` · `/Document/{id}` | `itemtype` obligatorio; `id` para get/delete. Listado: `limit`, `offset`, `sort_by`, `order`, `output`, `fields`, `filters`, `expand_dropdowns`, `include_deleted`. Delete: `purge`, `keep_history`. | Listar, consultar y eliminar documentos. | Subir, descargar o modificar archivos. |
+| Computer | `item_list` · `item_get` · `item_delete` | `/Computer` · `/Computer/{id}` | Igual que Ticket/Change/Document. Puede requerir `profile_id` con derechos de activos. | Listar, consultar y eliminar equipos. | Crear o actualizar equipos. |
+| Monitor | `item_list` · `item_get` · `item_delete` | `/Monitor` · `/Monitor/{id}` | Igual que Computer. Puede requerir `profile_id` con derechos de activos. | Listar, consultar y eliminar monitores. | Crear o actualizar monitores. |
+| Software | `item_list` · `item_get` · `item_delete` | `/Software` · `/Software/{id}` | Igual que Ticket/Change/Document. | Listar, consultar y eliminar software (catálogo). | Crear o actualizar software. |
+| SoftwareVersion | `item_list` · `item_get` · `item_delete` | `/SoftwareVersion` · `/SoftwareVersion/{id}` | Igual que Ticket/Change/Document. | Listar, consultar y eliminar versiones de software. | Crear o actualizar versiones. |
+| Project | `item_list` · `item_get` · `item_delete` | `/Project` · `/Project/{id}` | Igual que Ticket/Change/Document. | Listar, consultar y eliminar proyectos. | Crear o actualizar proyectos. |
+| ProjectTask | `item_list` · `item_get` · `item_delete` | `/ProjectTask` · `/ProjectTask/{id}` | Igual que Ticket/Change/Document. | Listar, consultar y eliminar tareas de proyecto. | Crear o actualizar tareas. |
+| KnowbaseItem | `item_list` · `item_get` · `item_delete` | `/KnowbaseItem` · `/KnowbaseItem/{id}` | Igual que Ticket/Change/Document. | Listar, consultar y eliminar artículos de la base de conocimiento. | Crear o actualizar artículos. |
+| Reminder | `item_list` · `item_get` · `item_delete` | `/Reminder` · `/Reminder/{id}` | Igual que Ticket/Change/Document. | Listar, consultar y eliminar recordatorios. | Crear o actualizar recordatorios. |
+| ContractType | `item_list` · `item_get` · `item_delete` | `/ContractType` · `/ContractType/{id}` | Igual que Ticket/Change/Document. Puede requerir `profile_id` con derechos de activos. | Listar, consultar y eliminar tipos de contrato. | Crear o actualizar tipos de contrato. |
+| Manufacturer | `item_list` · `item_get` · `item_delete` | `/Manufacturer` · `/Manufacturer/{id}` | Igual que Ticket/Change/Document. Puede requerir `profile_id` con derechos de activos. | Listar, consultar y eliminar fabricantes. | Crear o actualizar fabricantes. |
+| DeviceSimcard | `item_list` · `item_get` · `item_delete` | `/DeviceSimcard` · `/DeviceSimcard/{id}` | Igual que Ticket/Change/Document. Puede requerir `profile_id` con derechos de activos. | Listar, consultar y eliminar tarjetas SIM. | Crear o actualizar tarjetas SIM. |
 | Seguimientos de Ticket | `item_subitem_list` | `/Ticket/{id}/ITILFollowup` | `itemtype`, `id`, `subtype` obligatorios; `limit`, `offset`, `sort_by`, `order`, `output`, `fields` opcionales. | Listar seguimientos del ticket. | Obtener, crear, editar o eliminar un seguimiento con estas herramientas. |
 | Soluciones de Ticket | `item_subitem_list` | `/Ticket/{id}/ITILSolution` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar soluciones del ticket. | Obtener, crear, editar o eliminar una solución con estas herramientas. |
 | Usuarios de Ticket | `item_subitem_list` | `/Ticket/{id}/Ticket_User` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar usuarios relacionados con el ticket. | Añadir, modificar o quitar usuarios. |
@@ -87,3 +104,21 @@ Construir las rutas relativas sustituyendo `{id}` por el identificador obtenido.
 | Grupos de Change | `item_subitem_list` | `/Change/{id}/Change_Group` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar grupos relacionados con el cambio. | Añadir, modificar o quitar grupos. |
 | Tickets de Change | `item_subitem_list` | `/Change/{id}/Change_Ticket` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar relaciones entre el cambio y tickets. | Crear o eliminar relaciones. |
 | Documentos de Change | `item_subitem_list` | `/Change/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados al cambio. | Subir, vincular o desvincular documentos. |
+| Documentos de Computer | `item_subitem_list` | `/Computer/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados al equipo. | Subir, vincular o desvincular documentos. |
+| Tickets de Computer | `item_subitem_list` | `/Computer/{id}/Ticket` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar tickets relacionados con el equipo. | Crear tickets. |
+| Software instalado en Computer | `item_subitem_list` | `/Computer/{id}/Item_SoftwareVersion` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar versiones de software instaladas en el equipo. | Instalar o desinstalar software. |
+| Antivirus de Computer | `item_subitem_list` | `/Computer/{id}/ComputerAntivirus` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar antivirus instalados en el equipo. | Agregar o quitar antivirus. |
+| Maquinas virtuales de Computer | `item_subitem_list` | `/Computer/{id}/ComputerVirtualMachine` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar maquinas virtuales alojadas en el equipo. | Crear o eliminar maquinas virtuales. |
+| Documentos de Monitor | `item_subitem_list` | `/Monitor/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados al monitor. | Subir, vincular o desvincular documentos. |
+| Tickets de Monitor | `item_subitem_list` | `/Monitor/{id}/Ticket` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar tickets relacionados con el monitor. | Crear tickets. |
+| Documentos de Software | `item_subitem_list` | `/Software/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados al software. | Subir, vincular o desvincular documentos. |
+| Versiones de Software | `item_subitem_list` | `/Software/{id}/SoftwareVersion` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar versiones registradas del software. | Crear o eliminar versiones. |
+| Documentos de Project | `item_subitem_list` | `/Project/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados al proyecto. | Subir, vincular o desvincular documentos. |
+| Tickets de Project | `item_subitem_list` | `/Project/{id}/Ticket` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar tickets relacionados con el proyecto. | Crear tickets. |
+| Tareas de Project | `item_subitem_list` | `/Project/{id}/ProjectTask` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar tareas del proyecto. | Crear o eliminar tareas. |
+| Documentos de ProjectTask | `item_subitem_list` | `/ProjectTask/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados a la tarea. | Subir, vincular o desvincular documentos. |
+| Tickets de ProjectTask | `item_subitem_list` | `/ProjectTask/{id}/Ticket` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar tickets relacionados con la tarea. | Crear tickets. |
+| Documentos de KnowbaseItem | `item_subitem_list` | `/KnowbaseItem/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados al articulo. | Subir, vincular o desvincular documentos. |
+| Tickets de KnowbaseItem | `item_subitem_list` | `/KnowbaseItem/{id}/Ticket` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar tickets relacionados con el articulo. | Crear tickets. |
+| Documentos de Reminder | `item_subitem_list` | `/Reminder/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados al recordatorio. | Subir, vincular o desvincular documentos. |
+| Documentos de Manufacturer | `item_subitem_list` | `/Manufacturer/{id}/Document_Item` | `itemtype`, `id`, `subtype` obligatorios; opciones de listado. | Listar documentos vinculados al fabricante. | Subir, vincular o desvincular documentos. |

@@ -27,7 +27,10 @@ RESOURCE_SPECS: List[ResourceSpec] = [
             "itemtype/subtype (item_type_list/item_subtype_list), listar/"
             "consultar/eliminar de forma generica (item_list/item_get/"
             "item_delete) y listar sub-elementos (item_subitem_list), con su "
-            "matriz de rutas/capacidades."
+            "matriz de rutas/capacidades. Cubre Ticket/Change/Document y "
+            "activos/gestion (Computer, Monitor, Software, SoftwareVersion, "
+            "Project, ProjectTask, KnowbaseItem, Reminder, ContractType, "
+            "Manufacturer, DeviceSimcard)."
         ),
         mime_type="text/markdown",
         path=RESOURCES_DIR / "glpi-items.md",
