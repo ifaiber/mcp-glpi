@@ -6,6 +6,7 @@ Servidor de referencia para integrar el ecosistema Model Context Protocol (MCP) 
 - Implementacion MCP sobre stdio lista para Claude Desktop y otros clientes compatibles.
 - Coleccion de herramientas GLPI para listar, crear, actualizar y relacionar tickets y cambios, ademas de operaciones de sesion del usuario logueado.
 - Subida y descarga de archivos (Document de GLPI), y vinculo/desvinculo de documentos con tickets y cambios.
+- Recurso MCP (`resources/list` + `resources/read`) con una guia de uso de las herramientas de elementos/archivos GLPI, para que el cliente MCP la cargue como contexto de referencia.
 - Validacion de configuracion impulsada por Pydantic y uso de variables de entorno con `.env`.
 - Respuestas normalizadas en JSON para facilitar integracion con clientes MCP y automatizaciones.
 - Organizacion modular por paquetes (`tickets/`, `changes/`, `session/`) para extender nuevas funcionalidades con menor acoplamiento.
@@ -123,6 +124,23 @@ Las herramientas responden en JSON serializado dentro de `TextContent`. Por ejem
   }
 ]
 ```
+
+## Recursos MCP
+
+Ademas de las tools, el servidor expone la capacidad `resources` del protocolo MCP (`resources/list` / `resources/read`), para que un cliente MCP pueda cargar documentacion de referencia como contexto sin necesidad de invocar una tool.
+
+- `src/mcp_glpi/resource_catalog.py`: fuente unica de verdad de los recursos publicados (`RESOURCE_SPECS`: `uri`/`name`/`description`/`mime_type`/`path`), analogo a `TOOL_SPECS` en `tool_catalog.py`.
+- `src/mcp_glpi/resources/`: contenido real de los recursos (archivos `.md`), empaquetado dentro del wheel via `[tool.setuptools.package-data]` en `pyproject.toml`.
+- `src/mcp_glpi/server.py`: registra `handle_list_resources`/`handle_read_resource` sobre `self.app`, leyendo el contenido con `resource_catalog.read_resource_text(uri)`.
+
+Recursos publicados hoy (separados por tema para poder cargar solo el que aplica):
+
+| URI | Nombre | Contenido |
+|-----|--------|-----------|
+| `mcp-glpi://docs/glpi-items` | `glpi-items` | Herramientas **genericas**: descubrir itemtype/subtype (`item_type_list`/`item_subtype_list`), listar/consultar/eliminar de forma generica (`item_list`/`item_get`/`item_delete`) y listar sub-elementos (`item_subitem_list`), con su matriz de rutas/capacidades. |
+| `mcp-glpi://docs/glpi-tools` | `glpi-tools` | Herramientas **especificas** de tickets/cambios (crear, actualizar, eliminar, seguimientos, soluciones, asignaciones, relaciones) y de archivos (`file_upload`/`file_download`/`file_link`/`file_unlink`), con su matriz de rutas/capacidades. |
+
+Para agregar un recurso nuevo: colocar el archivo en `src/mcp_glpi/resources/`, agregar una entrada a `RESOURCE_SPECS`, y (si es un patron de archivo nuevo, ej. `.json`) ajustar el glob en `[tool.setuptools.package-data]`.
 
 ## Ejecucion del Servidor
 Ejecutar en modo CLI:

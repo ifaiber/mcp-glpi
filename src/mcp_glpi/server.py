@@ -13,6 +13,8 @@ from mcp.server.models import InitializationOptions
 
 import mcp_glpi.GLPITools as GLPITools
 import mcp_glpi.GLPiHandler as GLPiHandler
+from mcp.server.lowlevel.helper_types import ReadResourceContents
+from mcp_glpi.resource_catalog import RESOURCE_SPECS, read_resource_text
 
 
 SERVER_VERSION = "3.0.0"
@@ -49,6 +51,23 @@ class GLPIMCPServer:
             arguments: Dict[str, Any],
         ) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
             return GLPiHandler.CommandHandler(command=name, arguments=arguments).execute()
+
+        @self.app.list_resources()
+        async def handle_list_resources() -> List[types.Resource]:
+            return [
+                types.Resource(
+                    uri=spec.uri,
+                    name=spec.name,
+                    description=spec.description,
+                    mimeType=spec.mime_type,
+                )
+                for spec in RESOURCE_SPECS
+            ]
+
+        @self.app.read_resource()
+        async def handle_read_resource(uri) -> List[ReadResourceContents]:
+            text = read_resource_text(str(uri))
+            return [ReadResourceContents(content=text, mime_type="text/markdown")]
 
     async def run(self) -> None:
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):

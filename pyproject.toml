@@ -35,6 +35,9 @@ mcp_glpi = "mcp_glpi.server:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+mcp_glpi = ["resources/*.md"]
+
 [tool.black]
 line-length = 88
 target-version = ['py38', 'py39', 'py310', 'py311']
