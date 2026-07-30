@@ -45,10 +45,6 @@ class CommandHandler:
             error_type="unknown_command",
         )
 
-    def _echo(self):
-        message = self.arguments.get("message", "No message provided")
-        return self._success({"message": message})
-
     def _session_validate(self):
         session_info = glpi_session.get_full_session_data()
         if session_info:
@@ -61,40 +57,11 @@ class CommandHandler:
             lambda: self._success(glpi_session.get_my_profiles_data()),
         )
 
-    def _profile_switch(self):
-        profile_id = self._get_profile_id()
-        if profile_id is None:
-            return self._error(
-                "El parametro 'profile_id' es obligatorio para profile_switch.",
-                error_type="validation_error",
-            )
-        return self._run_operation(
-            "Error changing active profile",
-            lambda: self._success(glpi_session.change_active_profile_data(profile_id)),
-        )
-
     def _entity_list(self):
         recursive = self._get_bool_argument("recursive", False)
         return self._run_operation(
             "Error retrieving my entities",
             lambda: self._success(glpi_session.get_my_entities_data(recursive=recursive)),
-        )
-
-    def _entity_switch(self):
-        entity_id = self._get_entity_id()
-        if entity_id is None:
-            return self._error(
-                "El parametro 'entity_id' es obligatorio para entity_switch.",
-                error_type="validation_error",
-            )
-        recursive = self.arguments.get("recursive")
-        if recursive is not None:
-            recursive = self._get_bool_argument("recursive", False)
-        return self._run_operation(
-            "Error changing active entity",
-            lambda: self._success(
-                glpi_session.change_active_entity_data(entity_id, recursive=recursive)
-            ),
         )
 
     def _ticket_list(self):
@@ -602,6 +569,28 @@ class CommandHandler:
                 order=order,
                 output=output,
                 fields=fields,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _item_delete(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
+        if not itemtype or item_id is None:
+            return self._error(
+                "Los parametros 'itemtype' e 'id' son obligatorios para item_delete.",
+                error_type="validation_error",
+            )
+        purge = self.arguments.get("purge", False)
+        keep_history = self.arguments.get("keep_history", True)
+
+        return self._run_operation("Error deleting item", lambda: self._wrap_result(
+            glpi_generic.delete_item(
+                itemtype,
+                item_id,
+                purge=purge,
+                keep_history=keep_history,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )

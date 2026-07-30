@@ -266,3 +266,50 @@ def test_list_subitems_supports_document_item_under_ticket(monkeypatch):
     assert captured['itemtype'] == 'Ticket'
     assert captured['subtype'] == 'Document_Item'
     assert result['items'][0]['documents_id'] == 1
+
+
+def test_delete_item_deletes_via_delete_items(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def delete_items(self, itemtype, ids, *, purge, log):
+            captured['itemtype'] = itemtype
+            captured['ids'] = ids
+            captured['purge'] = purge
+            captured['log'] = log
+            return {'deleted': ids}
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    result = generic.delete_item('Ticket', '15', purge='1', keep_history='0')
+
+    assert captured['itemtype'] == 'Ticket'
+    assert captured['ids'] == [15]
+    assert captured['purge'] is True
+    assert captured['log'] is False
+    assert result.summary() == 'Deleted Ticket 15'
+
+
+def test_delete_item_rejects_unsupported_itemtype():
+    with pytest.raises(ValueError, match='Unsupported itemtype'):
+        generic.delete_item('User', 3)
+
+
+def test_delete_item_switches_entity_and_profile(monkeypatch):
+    calls = []
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def change_active_profile(self, profile_id):
+            calls.append(('profile', profile_id))
+
+        def change_active_entity(self, entity_id):
+            calls.append(('entity', entity_id))
+
+        def delete_items(self, itemtype, ids, *, purge, log):
+            return {'deleted': ids}
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    generic.delete_item('Ticket', 15, entity_id=11, profile_id=24)
+
+    assert calls == [('profile', 24), ('entity', 11)]

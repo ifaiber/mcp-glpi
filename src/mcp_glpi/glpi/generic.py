@@ -7,7 +7,8 @@ combination. ``ITEMTYPE_CATALOG`` is a deliberate allowlist: it only covers
 itemtypes/subtypes this server already understands elsewhere (tickets,
 changes, and their follow-ups/solutions/actors/links), so a caller can't
 reach unrelated GLPI data (User, Config, Computer, ...) that was never meant
-to be exposed here. Read-only: no create/update/delete.
+to be exposed here. Mostly read-only (list/get/list-subitems); `delete_item`
+is the one generic mutation, for the same supported itemtypes.
 """
 
 from __future__ import annotations
@@ -20,9 +21,11 @@ from glpi_client import SortOrder
 from ..common.config import get_config
 from .shared import (
     EntityList,
+    EntityMutationResult,
     ensure_positive_int,
     fetch_paginated_items,
     fetch_paginated_subitems,
+    prepare_bool_flag,
     prepare_generic_item,
     switch_active_entity,
     switch_active_profile,
@@ -202,3 +205,43 @@ def list_subitems(
         item_key="items", items=items, response_range=response_range, prepare_item=prepare_generic_item
     )
     return item_list.respond(output, fields)
+
+
+def delete_item(
+    itemtype: Any,
+    item_id: Any,
+    *,
+    purge: Any = False,
+    keep_history: Any = True,
+    entity_id: Optional[int] = None,
+    profile_id: Optional[int] = None,
+) -> EntityMutationResult:
+    """Generic delete: DELETE /{itemtype}/{id}."""
+    itemtype_str = ensure_supported_itemtype(itemtype)
+    item_id_int = ensure_positive_int(item_id, "id")
+    purge_flag = bool(prepare_bool_flag(purge))
+    keep_history_flag = bool(prepare_bool_flag(keep_history))
+
+    with open_handler() as handler:
+        switch_active_profile(handler, profile_id)
+        switch_active_entity(handler, entity_id)
+        response = handler.delete_items(
+            itemtype_str,
+            [item_id_int],
+            purge=purge_flag,
+            log=keep_history_flag,
+        )
+
+    return EntityMutationResult(
+        action="item_delete",
+        entity_id_field="id",
+        entity_id=item_id_int,
+        description=f"Deleted {itemtype_str} {item_id_int}",
+        payload={
+            "itemtype": itemtype_str,
+            "id": item_id_int,
+            "purge": purge_flag,
+            "keep_history": keep_history_flag,
+        },
+        response=response,
+    )

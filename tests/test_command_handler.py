@@ -29,16 +29,6 @@ def _extract_json(response):
     return json.loads(content.text)
 
 
-def test_echo_command_returns_expected_text():
-    response = CommandHandler('echo', {'message': 'hola'}).execute()
-    payload = _extract_json(response)
-    assert payload == {
-        'ok': True,
-        'command': 'echo',
-        'data': {'message': 'hola'},
-    }
-
-
 def test_unknown_command_returns_friendly_message():
     response = CommandHandler('nope').execute()
     payload = _extract_json(response)
@@ -74,37 +64,6 @@ def test_profile_list_uses_session_module(monkeypatch):
     }
 
 
-def test_profile_switch_requires_profile_id():
-    response = CommandHandler('profile_switch', {}).execute()
-    payload = _extract_json(response)
-    assert payload['ok'] is False
-    assert payload['error']['type'] == 'validation_error'
-
-
-def test_profile_switch_treats_blank_profile_id_as_missing():
-    response = CommandHandler('profile_switch', {'profile_id': ''}).execute()
-    payload = _extract_json(response)
-    assert payload['ok'] is False
-    assert payload['error']['type'] == 'validation_error'
-
-
-def test_profile_switch_uses_session_module(monkeypatch):
-    captured = {}
-
-    def fake_change_active_profile_data(profile_id):
-        captured['profile_id'] = profile_id
-        return {'profile_id': profile_id, 'active_profile': {'id': profile_id, 'name': 'Desarrollador'}}
-
-    monkeypatch.setattr(glpi_session, 'change_active_profile_data', fake_change_active_profile_data)
-
-    response = CommandHandler('profile_switch', {'profile_id': '24'}).execute()
-    payload = _extract_json(response)
-
-    assert payload['ok'] is True
-    assert payload['data']['profile_id'] == 24
-    assert captured['profile_id'] == 24
-
-
 def test_entity_list_uses_session_module(monkeypatch):
     monkeypatch.setattr(
         glpi_session,
@@ -118,32 +77,6 @@ def test_entity_list_uses_session_module(monkeypatch):
         'command': 'entity_list',
         'data': [{'id': 2, 'name': 'Administrativo', 'is_recursive': True}],
     }
-
-
-def test_entity_switch_requires_entity_id():
-    response = CommandHandler('entity_switch', {}).execute()
-    payload = _extract_json(response)
-    assert payload['ok'] is False
-    assert payload['error']['type'] == 'validation_error'
-
-
-def test_entity_switch_uses_session_module(monkeypatch):
-    captured = {}
-
-    def fake_change_active_entity_data(entity_id, recursive=None):
-        captured['entity_id'] = entity_id
-        captured['recursive'] = recursive
-        return {'entity_id': entity_id, 'active_entities': {'id': entity_id}}
-
-    monkeypatch.setattr(glpi_session, 'change_active_entity_data', fake_change_active_entity_data)
-
-    response = CommandHandler('entity_switch', {'entity_id': '5', 'recursive': True}).execute()
-    payload = _extract_json(response)
-
-    assert payload['ok'] is True
-    assert payload['data']['entity_id'] == 5
-    assert captured['entity_id'] == 5
-    assert captured['recursive'] is True
 
 
 def test_ticket_delete_requires_ticket_id():
@@ -222,13 +155,6 @@ def test_ticket_add_with_blank_entity_id_is_treated_as_omitted(monkeypatch):
 
     assert payload['ok'] is True
     assert captured['entity_id'] is None
-
-
-def test_entity_switch_treats_blank_entity_id_as_missing():
-    response = CommandHandler('entity_switch', {'entity_id': ''}).execute()
-    payload = _extract_json(response)
-    assert payload['ok'] is False
-    assert payload['error']['type'] == 'validation_error'
 
 
 def test_ticket_list_forwards_entity_id(monkeypatch):
@@ -697,6 +623,37 @@ def test_item_subitem_list_forwards_arguments(monkeypatch):
     assert captured['item_id'] == 47
     assert captured['subtype'] == 'ITILFollowup'
     assert captured['entity_id'] == 11
+
+
+def test_item_delete_requires_itemtype_and_id():
+    response = CommandHandler('item_delete', {'itemtype': 'Ticket'}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_item_delete_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_delete_item(itemtype, item_id, **kwargs):
+        captured['itemtype'] = itemtype
+        captured['item_id'] = item_id
+        captured.update(kwargs)
+        return DummyResult(summary_text='Deleted Ticket 15', payload={'response': {'deleted': [15]}})
+
+    monkeypatch.setattr(glpi_generic, 'delete_item', fake_delete_item)
+
+    response = CommandHandler(
+        'item_delete', {'itemtype': 'Ticket', 'id': 15, 'purge': True, 'entity_id': '6'}
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert payload['summary'] == 'Deleted Ticket 15'
+    assert captured['itemtype'] == 'Ticket'
+    assert captured['item_id'] == 15
+    assert captured['purge'] is True
+    assert captured['entity_id'] == 6
 
 
 def test_file_upload_requires_file_path():

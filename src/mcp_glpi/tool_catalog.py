@@ -334,6 +334,39 @@ def _item_subitem_list_schema() -> Dict[str, Any]:
     }
 
 
+def _item_delete_schema() -> Dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "itemtype": {
+                "type": "string",
+                "enum": _SUPPORTED_ITEMTYPES,
+                "description": "Itemtype de GLPI soportado. Use 'item_type_list' para ver todos.",
+            },
+            "id": {
+                "type": ["integer", "string"],
+                "description": "Identificador del elemento a eliminar.",
+            },
+            "purge": {
+                "type": _def_bool,
+                "description": "Forzar purga (borrado definitivo) en lugar de enviar a la papelera",
+            },
+            "keep_history": {
+                "type": _def_bool,
+                "description": "Mantener historial de GLPI",
+            },
+            "entity_id": _entity_id_property,
+            "profile_id": _profile_id_property,
+        },
+        "required": ["itemtype", "id"],
+        "description": (
+            "Elimina un elemento de un itemtype soportado (equivalente a "
+            "DELETE /{itemtype}/{id}), a la papelera o con purga definitiva "
+            "si se indica."
+        ),
+    }
+
+
 def _creation_schema(description: str) -> Dict[str, Any]:
     properties = copy.deepcopy(_creation_properties)
     properties["pr_links"] = copy.deepcopy(_pr_links_property)
@@ -630,21 +663,6 @@ def _file_link_schema() -> Dict[str, Any]:
 
 TOOL_SPECS: List[ToolSpec] = [
     ToolSpec(
-        name="echo",
-        description="Devuelve el texto que se le proporciona (util para pruebas)",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string",
-                    "description": "Mensaje a devolver",
-                }
-            },
-            "required": ["message"],
-        },
-        handler_name="_echo",
-    ),
-    ToolSpec(
         name="session_validate",
         description="Muestra informacion sobre el estado de la sesion con GLPI",
         input_schema={"type": "object", "properties": {}, "required": []},
@@ -657,36 +675,11 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="_profile_list",
     ),
     ToolSpec(
-        name="profile_switch",
-        description=(
-            "Cambia el perfil activo de la sesion GLPI a partir de su codigo "
-            "(id) y devuelve el perfil activo resultante para confirmar el "
-            "cambio. El perfil activo determina los permisos con los que se "
-            "opera; cambiar solo de entidad (ver 'entity_switch') no "
-            "cambia los permisos. Nota: cada herramienta MCP abre y cierra su "
-            "propia sesion GLPI, por lo que este cambio no persiste entre "
-            "llamadas; para operar con otro perfil en otra herramienta, pase "
-            "'profile_id' directamente en esa llamada."
-        ),
-        input_schema={
-            "type": "object",
-            "properties": {
-                "profile_id": {
-                    "type": ["integer", "string"],
-                    "description": "Codigo (id) del perfil a activar",
-                },
-            },
-            "required": ["profile_id"],
-        },
-        handler_name="_profile_switch",
-    ),
-    ToolSpec(
         name="entity_list",
         description=(
             "Lista las entidades GLPI disponibles para el usuario logueado "
             "(id, nombre y si es recursiva). Util para obtener el codigo de "
-            "entidad a usar con el parametro 'entity_id' de otras "
-            "herramientas o con 'entity_switch'."
+            "entidad a usar con el parametro 'entity_id' de otras herramientas."
         ),
         input_schema={
             "type": "object",
@@ -699,32 +692,6 @@ TOOL_SPECS: List[ToolSpec] = [
             "required": [],
         },
         handler_name="_entity_list",
-    ),
-    ToolSpec(
-        name="entity_switch",
-        description=(
-            "Cambia la entidad activa de la sesion GLPI a partir de su codigo "
-            "(id) y devuelve la entidad activa resultante para confirmar el "
-            "cambio. Nota: cada herramienta MCP abre y cierra su propia "
-            "sesion GLPI, por lo que este cambio no persiste entre llamadas; "
-            "para operar sobre otra entidad en otra herramienta, pase "
-            "'entity_id' directamente en esa llamada."
-        ),
-        input_schema={
-            "type": "object",
-            "properties": {
-                "entity_id": {
-                    "type": ["integer", "string"],
-                    "description": "Codigo (id) de la entidad a activar",
-                },
-                "recursive": {
-                    "type": ["boolean", "string", "integer", "null"],
-                    "description": "Aplicar el cambio de forma recursiva a las subentidades",
-                },
-            },
-            "required": ["entity_id"],
-        },
-        handler_name="_entity_switch",
     ),
     ToolSpec(
         name="ticket_list",
@@ -953,6 +920,16 @@ TOOL_SPECS: List[ToolSpec] = [
         ),
         input_schema=_item_subitem_list_schema(),
         handler_name="_item_subitem_list",
+    ),
+    ToolSpec(
+        name="item_delete",
+        description=(
+            "Elimina un elemento de un itemtype soportado (a la papelera, o "
+            "con purga definitiva si se indica). Use 'item_type_list' para "
+            "ver los itemtypes soportados."
+        ),
+        input_schema=_item_delete_schema(),
+        handler_name="_item_delete",
     ),
     ToolSpec(
         name="file_upload",

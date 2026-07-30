@@ -31,12 +31,9 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 
 | Herramienta | Descripcion breve |
 |-------------|-------------------|
-| `echo` | Devuelve el texto recibido, util para pruebas de conectividad. |
 | `session_validate` | Muestra informacion de la sesion GLPI activa. |
 | `profile_list` | Lista los perfiles del usuario logueado y las entidades asociadas. |
-| `profile_switch` | Cambia el perfil activo de la sesion indicando su codigo (id). |
 | `entity_list` | Lista las entidades GLPI disponibles para el usuario logueado (id, nombre). |
-| `entity_switch` | Cambia la entidad activa de la sesion indicando su codigo (id). |
 | `ticket_list` | Lista tickets con filtros, paginacion y distintos formatos. |
 | `change_list` | Lista cambios con filtros, paginacion y distintos formatos. |
 | `ticket_add` | Crea un ticket; soporta campos adicionales. |
@@ -66,6 +63,7 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 | `item_list` | Acceso generico de solo lectura: lista elementos de un itemtype soportado. |
 | `item_get` | Acceso generico de solo lectura a un elemento puntual (por id) de un itemtype soportado. |
 | `item_subitem_list` | Acceso generico de solo lectura a los sub-items de un elemento (itemtype/id/subtype soportados). |
+| `item_delete` | Elimina un elemento de un itemtype soportado (papelera o purga definitiva). |
 | `file_upload` | Sube un archivo local como Document de GLPI (multipart/form-data). |
 | `file_download` | Descarga un Document de GLPI y lo escribe en una ruta local. |
 | `file_link` | Vincula un Document existente a un ticket o cambio (Document_Item). |
@@ -73,13 +71,14 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 
 `ticket_follow_list`/`change_follow_list` y `ticket_solution_list`/`change_solution_list` listan los sub-items (`ITILFollowup`/`ITILSolution`) de un ticket o cambio puntual. Aceptan `ticket_id`/`change_id` (obligatorio), `limit`, `offset`, `sort_by`, `order`, `output` (`dict`/`table`/`raw`), `fields`, y los mismos `entity_id`/`profile_id` opcionales descritos abajo. No soportan `filters`/`expand_dropdowns`/`include_deleted` porque la API de sub-items de GLPI no los expone.
 
-### Acceso generico (`item_list` / `item_get` / `item_subitem_list`)
+### Acceso generico (`item_list` / `item_get` / `item_subitem_list` / `item_delete`)
 
-Ademas de las herramientas especificas, hay tres herramientas de acceso **generico y de solo lectura** a cualquier itemtype/subtype **soportado**, sin necesidad de una tool nueva por combinacion:
+Ademas de las herramientas especificas, hay herramientas de acceso **generico** a cualquier itemtype/subtype **soportado**, sin necesidad de una tool nueva por combinacion. Las tres primeras son de solo lectura; `item_delete` es la unica mutacion generica:
 
 - `item_list(itemtype, ...)`: lista elementos del itemtype (equivalente a `GET /{itemtype}`), con `limit`/`offset`/`sort_by`/`order`/`filters`/`output`/`fields`. No lleva `id`.
 - `item_get(itemtype, id, ...)`: obtiene un elemento puntual por id (`GET /{itemtype}/{id}`), con `fields`/`expand_dropdowns`. `id` es obligatorio.
 - `item_subitem_list(itemtype, id, subtype, ...)`: lista sub-items de un elemento (`GET /{itemtype}/{id}/{subtype}`).
+- `item_delete(itemtype, id, ...)`: elimina un elemento (equivalente a `DELETE /{itemtype}/{id}`), con `purge`/`keep_history` igual que `ticket_delete`/`change_delete`.
 - `item_type_list` / `item_subtype_list`: devuelven los itemtypes/subtypes soportados, cada uno con una breve descripcion, para saber que valores son validos antes de llamar a las anteriores.
 
 Los itemtypes/subtypes soportados son una **lista blanca deliberada** (hoy: `Ticket`, `Change`, `Document`, y sus sub-recursos ya cubiertos por las herramientas especificas — `ITILFollowup`, `ITILSolution`, `Ticket_User`, `Group_Ticket`, `Change_User`, `Change_Group`, `Change_Ticket`, `Document_Item`). Un `itemtype`/`subtype` fuera de esa lista (por ejemplo `User`, `Config`, `Computer`) devuelve un error de validacion en vez de ejecutarse — este servidor no expone datos de GLPI mas alla de tickets/cambios y sus relaciones, ni siquiera a traves de la ruta generica.
@@ -103,7 +102,9 @@ Si se omiten (o llegan vacios/`null`), se usan el perfil/entidad activos por def
 
 Como cada llamada MCP abre y cierra su propia sesion GLPI, el cambio de entidad/perfil aplica solo a esa llamada puntual; no persiste para llamadas posteriores.
 
-**Importante**: GLPI responde `HTTP 200` con cuerpo `false` (no un error HTTP) cuando la entidad o el perfil indicados no son accesibles para el usuario/token, o no existen. `entity_switch` y `profile_switch` detectan este caso y devuelven un error explicito en vez de fallar en silencio; si obtenes ese error, revisa que el `entity_id`/`profile_id` este entre los que devuelve `entity_list`/`profile_list`.
+**Importante**: GLPI responde `HTTP 200` con cuerpo `false` (no un error HTTP) cuando la entidad o el perfil indicados no son accesibles para el usuario/token, o no existen. Cualquier herramienta invocada con `entity_id`/`profile_id` detecta este caso y devuelve un error explicito en vez de fallar en silencio; si obtenes ese error, revisa que el `entity_id`/`profile_id` este entre los que devuelve `entity_list`/`profile_list`.
+
+**Nota de diseño**: no hay herramientas dedicadas `entity_switch`/`profile_switch` — cada llamada MCP abre y cierra su propia sesion GLPI, asi que "cambiar de entidad/perfil" como operacion aislada no tendria ningun efecto persistente. Cambiar de entidad/perfil solo tiene sentido *junto con* la operacion real que se quiere ejecutar en esa entidad/perfil, por eso `entity_id`/`profile_id` son parametros de las herramientas de negocio (`ticket_list`, `ticket_add`, etc.), no tools independientes.
 
 Las herramientas responden en JSON serializado dentro de `TextContent`. Por ejemplo, `profile_list` devuelve una lista simplificada de perfiles:
 
@@ -162,7 +163,7 @@ tambien puedes usar un archivo de configuracion
 mcp-inspector --config .\examples\config-developer.json
 ```
 
-- **Sesion GLPI**: las herramientas `session_validate`, `profile_list` y `entity_list` permiten validar credenciales y consultar el contexto disponible del usuario autenticado; `profile_switch` y `entity_switch` permiten validar y cambiar el perfil/entidad activos.
+- **Sesion GLPI**: las herramientas `session_validate`, `profile_list` y `entity_list` permiten validar credenciales y consultar el contexto disponible del usuario autenticado (codigos de perfil/entidad a usar con `entity_id`/`profile_id` en el resto de las herramientas).
 
 ## Pruebas
 La suite se ejecuta con `pytest` y esta localizada en `tests/`.
@@ -188,7 +189,7 @@ La capa GLPI fue separada por dominio y responsabilidad:
 - `src/mcp_glpi/glpi/changes/`: lectura, creacion, actualizacion, comentarios (agregar/listar), soluciones (agregar/listar), asignaciones, enlaces y borrado.
 - `src/mcp_glpi/glpi/session/`: lectura de sesion, perfiles (listado y cambio de perfil activo) y entidades (listado y cambio de entidad activa) del usuario logueado.
 - `src/mcp_glpi/glpi/files/`: subida (`file_upload`), descarga (`file_download`) y vinculo/desvinculo (`file_link`/`file_unlink`, itemtype `Document_Item`) de documentos.
-- `src/mcp_glpi/glpi/generic.py`: acceso generico de solo lectura a itemtypes/subtypes soportados (`ITEMTYPE_CATALOG`, la lista blanca — incluye `Document`/`Document_Item`), detras de `item_list`/`item_get`/`item_subitem_list`/`item_type_list`/`item_subtype_list`.
+- `src/mcp_glpi/glpi/generic.py`: acceso generico a itemtypes/subtypes soportados (`ITEMTYPE_CATALOG`, la lista blanca — incluye `Document`/`Document_Item`), detras de `item_list`/`item_get`/`item_subitem_list`/`item_type_list`/`item_subtype_list` (solo lectura) e `item_delete` (la unica mutacion generica).
 - `src/mcp_glpi/glpi/shared.py`: helpers comunes reutilizados por las entidades GLPI, incluyendo `fetch_paginated_items`/`fetch_paginated_subitems` (paginacion, apertura de sesion, cambio de entidad/perfil) y `EntityList.respond()` (dispatch de `output`/`fields`) que comparten `ticket_list`/`change_list`, los listados de seguimientos/soluciones, e `item_list`/`item_subitem_list`.
 
 ## Recursos Utiles
