@@ -48,7 +48,7 @@ def test_glpi_tools_resource_covers_specific_tools():
 def test_glpi_entity_profile_resolution_resource_covers_both_cases():
     text = resource_catalog.read_resource_text("mcp-glpi://docs/glpi-entity-profile-resolution")
     assert "resolution_notes" in text
-    assert "profile_list" in text
+    assert "entityprofile_list" in text
     assert "ambigu" in text.lower()
 
 

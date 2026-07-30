@@ -58,20 +58,33 @@ def test_list_subtypes_filtered_by_itemtype():
     assert 'Change_User' not in subtypes
 
 
-def test_list_subtypes_rejects_unsupported_itemtype():
-    with pytest.raises(ValueError, match='Unsupported itemtype'):
-        generic.list_subtypes('User')
+def test_list_subtypes_returns_empty_for_itemtype_outside_catalog():
+    # Not a restriction: item_subitem_list itself accepts any subtype; this
+    # just means there's no curated guidance on file for 'User' yet.
+    assert generic.list_subtypes('User') == []
 
 
-def test_ensure_supported_itemtype_rejects_unknown():
-    with pytest.raises(ValueError, match='Unsupported itemtype'):
-        generic.ensure_supported_itemtype('Config')
+def test_normalize_itemtype_accepts_any_nonblank_value():
+    assert generic.normalize_itemtype('User') == 'User'
+    assert generic.normalize_itemtype('Config') == 'Config'
 
 
-def test_ensure_supported_subtype_rejects_wrong_combination():
-    # Ticket_User is only valid under Ticket, not Change.
-    with pytest.raises(ValueError, match='Unsupported subtype'):
-        generic.ensure_supported_subtype('Change', 'Ticket_User')
+def test_normalize_itemtype_rejects_blank():
+    with pytest.raises(ValueError, match='itemtype is required'):
+        generic.normalize_itemtype('')
+    with pytest.raises(ValueError, match='itemtype is required'):
+        generic.normalize_itemtype(None)
+
+
+def test_normalize_subtype_accepts_any_nonblank_value():
+    # Ticket_User isn't in the catalog under Change, but that's no longer
+    # enforced here -- GLPI decides whether the route is valid.
+    assert generic.normalize_subtype('Ticket_User') == 'Ticket_User'
+
+
+def test_normalize_subtype_rejects_blank():
+    with pytest.raises(ValueError, match='subtype is required'):
+        generic.normalize_subtype('')
 
 
 def test_list_items_lists_itemtype(monkeypatch):
@@ -91,9 +104,20 @@ def test_list_items_lists_itemtype(monkeypatch):
     assert result == {'items': [{'id': 1, 'name': 'Demo'}], 'range': None}
 
 
-def test_list_items_rejects_unsupported_itemtype():
-    with pytest.raises(ValueError, match='Unsupported itemtype'):
-        generic.list_items('User')
+def test_list_items_accepts_itemtype_outside_catalog(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_many_items(self, itemtype, **kwargs):
+            captured['itemtype'] = itemtype
+            return [{'id': 1}]
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    result = generic.list_items('User')
+
+    assert captured['itemtype'] == 'User'
+    assert result['items'] == [{'id': 1}]
 
 
 def test_list_items_table_output_requires_fields(monkeypatch):
@@ -157,9 +181,20 @@ def test_get_item_applies_field_projection_for_single_item(monkeypatch):
     assert result == {'id': 47, 'name': 'Demo'}
 
 
-def test_get_item_rejects_unsupported_itemtype():
-    with pytest.raises(ValueError, match='Unsupported itemtype'):
-        generic.get_item('User', 3)
+def test_get_item_accepts_itemtype_outside_catalog(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_item(self, itemtype, item_id, **kwargs):
+            captured['itemtype'] = itemtype
+            return {'id': item_id}
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    result = generic.get_item('User', 3)
+
+    assert captured['itemtype'] == 'User'
+    assert result == {'id': 3}
 
 
 def test_get_item_switches_entity_and_profile(monkeypatch):
@@ -210,9 +245,23 @@ def test_list_subitems_forwards_call_and_switches_entity_profile(monkeypatch):
     assert result == {'items': [{'id': 1, 'content': 'hola'}], 'range': None}
 
 
-def test_list_subitems_rejects_unsupported_combination():
-    with pytest.raises(ValueError, match='Unsupported subtype'):
-        generic.list_subitems('Change', 1, 'Ticket_User')
+def test_list_subitems_accepts_combination_outside_catalog(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_sub_items(self, itemtype, item_id, subtype, **kwargs):
+            captured['itemtype'] = itemtype
+            captured['subtype'] = subtype
+            return []
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    # Ticket_User isn't catalogued under Change, but that's no longer
+    # enforced here -- GLPI decides whether the route is valid.
+    generic.list_subitems('Change', 1, 'Ticket_User')
+
+    assert captured['itemtype'] == 'Change'
+    assert captured['subtype'] == 'Ticket_User'
 
 
 def test_list_subitems_supports_raw_output(monkeypatch):
@@ -297,9 +346,15 @@ def test_list_subitems_supports_computer_specific_subtypes(monkeypatch):
         assert result['items'] == [{'id': 1}]
 
 
-def test_list_subitems_rejects_computer_only_subtype_for_monitor():
-    with pytest.raises(ValueError, match='Unsupported subtype'):
-        generic.list_subitems('Monitor', 1, 'ComputerAntivirus')
+def test_list_subitems_accepts_computer_only_subtype_for_monitor(monkeypatch):
+    # ComputerAntivirus isn't catalogued under Monitor; no longer enforced.
+    class DummyHandler(_NoRangeDummyHandler):
+        def get_sub_items(self, itemtype, item_id, subtype, **kwargs):
+            return []
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    generic.list_subitems('Monitor', 1, 'ComputerAntivirus')
 
 
 def test_delete_item_deletes_via_delete_items(monkeypatch):
@@ -324,9 +379,19 @@ def test_delete_item_deletes_via_delete_items(monkeypatch):
     assert result.summary() == 'Deleted Ticket 15'
 
 
-def test_delete_item_rejects_unsupported_itemtype():
-    with pytest.raises(ValueError, match='Unsupported itemtype'):
-        generic.delete_item('User', 3)
+def test_delete_item_accepts_itemtype_outside_catalog(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_NoRangeDummyHandler):
+        def delete_items(self, itemtype, ids, *, purge, log):
+            captured['itemtype'] = itemtype
+            return {'deleted': ids}
+
+    monkeypatch.setattr(generic, 'RequestHandler', DummyHandler)
+
+    generic.delete_item('User', 3)
+
+    assert captured['itemtype'] == 'User'
 
 
 def test_delete_item_switches_entity_and_profile(monkeypatch):

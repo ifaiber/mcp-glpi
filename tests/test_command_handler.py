@@ -49,33 +49,18 @@ def test_session_validate_uses_session_module(monkeypatch):
     }
 
 
-def test_profile_list_uses_session_module(monkeypatch):
+def test_entityprofile_list_uses_session_module(monkeypatch):
     monkeypatch.setattr(
         glpi_session,
         'get_my_profiles_data',
-        lambda: [],
+        lambda: [{'id': 22, 'name': 'Administrativo - Solicitante', 'entities': [{'id': 2, 'name': 'Administrativo', 'is_recursive': True}]}],
     )
-    response = CommandHandler('profile_list', {}).execute()
+    response = CommandHandler('entityprofile_list', {}).execute()
     payload = _extract_json(response)
     assert payload == {
         'ok': True,
-        'command': 'profile_list',
-        'data': [],
-    }
-
-
-def test_entity_list_uses_session_module(monkeypatch):
-    monkeypatch.setattr(
-        glpi_session,
-        'get_my_entities_data',
-        lambda recursive=False: [{'id': 2, 'name': 'Administrativo', 'is_recursive': True}],
-    )
-    response = CommandHandler('entity_list', {}).execute()
-    payload = _extract_json(response)
-    assert payload == {
-        'ok': True,
-        'command': 'entity_list',
-        'data': [{'id': 2, 'name': 'Administrativo', 'is_recursive': True}],
+        'command': 'entityprofile_list',
+        'data': [{'id': 22, 'name': 'Administrativo - Solicitante', 'entities': [{'id': 2, 'name': 'Administrativo', 'is_recursive': True}]}],
     }
 
 
@@ -707,9 +692,12 @@ def test_item_list_forwards_arguments(monkeypatch):
     assert captured['limit'] == 5
 
 
-def test_item_list_reports_unsupported_itemtype_as_validation_error(monkeypatch):
+def test_item_list_reports_domain_value_error_as_validation_error(monkeypatch):
+    # Any ValueError raised by the domain layer (glpi/generic.py) -- not
+    # specifically an unsupported-itemtype rejection, since item_list no
+    # longer restricts itemtype -- must surface as a validation_error.
     def failing_list_items(itemtype, **kwargs):
-        raise ValueError(f"Unsupported itemtype '{itemtype}'")
+        raise ValueError(f"itemtype is required")
 
     monkeypatch.setattr(glpi_generic, 'list_items', failing_list_items)
 
@@ -747,9 +735,10 @@ def test_item_get_forwards_arguments(monkeypatch):
     assert captured['item_id'] == '47'
 
 
-def test_item_get_reports_unsupported_itemtype_as_validation_error(monkeypatch):
+def test_item_get_reports_domain_value_error_as_validation_error(monkeypatch):
+    # Same as above for item_get's domain layer.
     def failing_get_item(itemtype, item_id, **kwargs):
-        raise ValueError(f"Unsupported itemtype '{itemtype}'")
+        raise ValueError(f"itemtype is required")
 
     monkeypatch.setattr(glpi_generic, 'get_item', failing_get_item)
 

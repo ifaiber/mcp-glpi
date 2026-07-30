@@ -6,9 +6,9 @@ Estas herramientas son de **descubrimiento, consulta y eliminación genérica**.
 
 ## Descubrir tipos y subtipos
 
-Si no se conoce el `itemtype` aceptado, usar `item_type_list` antes de llamar a las herramientas principales. Elegir el valor de `itemtype` de esa respuesta; no inferirlo ni usar un tipo fuera de la lista devuelta.
+`item_type_list`/`item_subtype_list` devuelven una lista de **referencia** (itemtypes/subtypes ya probados), no una lista cerrada de valores permitidos: `item_list`/`item_get`/`item_delete`/`item_subitem_list` aceptan **cualquier** itemtype o subtype de GLPI, esté o no en esa lista. Usar `item_type_list` cuando no se conozca de antemano qué itemtype usar, para partir de un valor conocido en vez de adivinar; si ya se sabe el itemtype/subtype exacto (por ejemplo por un `href` de otra respuesta), se puede usar directamente sin pasar por `item_type_list` primero.
 
-Si se necesita conocer los subtipos disponibles para un elemento, usar `item_subtype_list` proporcionando el `itemtype` ya identificado. La respuesta enumera los `subtype` válidos para ese tipo. Usar ese valor tanto para interpretar una ruta `/{itemtype}/{id}/{subitemtype}` como antes de llamar a `item_subitem_list`.
+Un itemtype/subtype que no existe en GLPI, o uno que existe pero para el que el perfil activo no tiene permiso, no falla con un error de validación previo: falla con el error real que devuelve GLPI (por ejemplo `404`, `400 ERROR_RESOURCE_NOT_FOUND_NOR_COMMONDBTM`, o `403 ERROR_RIGHT_MISSING`), reportado como `runtime_error`. Si eso ocurre, revisar el nombre exacto (capitalización de GLPI) o intentar con otro `profile_id` (ver `mcp-glpi://docs/glpi-entity-profile-resolution`) antes de asumir que el itemtype no existe.
 
 ## Localizar elementos: `item_list`
 
@@ -68,16 +68,18 @@ La eliminación normal envía el elemento a la papelera. Incluir `purge: true` s
 
 Además de `Ticket`/`Change`/`Document`, el catálogo soporta itemtypes de activos y gestión, verificados contra una instancia GLPI real: `Computer`, `Monitor`, `Software`, `SoftwareVersion`, `Project`, `ProjectTask`, `KnowbaseItem`, `Reminder`, `ContractType`, `Manufacturer`, `DeviceSimcard`. Se usan igual que `Ticket`/`Change` — mismo `item_list`/`item_get`/`item_delete`/`item_subitem_list`, mismo flujo de descubrimiento con `item_type_list`/`item_subtype_list`.
 
-`Computer` y `Monitor` en particular suelen requerir un perfil GLPI con derechos de inventario/activos, distinto del perfil de soporte que usa la sesión por defecto. Si `item_list`/`item_get` devuelven un error `403`/`ERROR_RIGHT_MISSING` para uno de estos itemtypes, volver a intentar pasando `profile_id` con un perfil que sí tenga esos derechos (por id o por nombre — ver el recurso `mcp-glpi://docs/glpi-entity-profile-resolution`); consultar `profile_list` para ver qué perfiles tiene el usuario.
+`Computer` y `Monitor` en particular suelen requerir un perfil GLPI con derechos de inventario/activos, distinto del perfil de soporte que usa la sesión por defecto. Si `item_list`/`item_get` devuelven un error `403`/`ERROR_RIGHT_MISSING` para uno de estos itemtypes, volver a intentar pasando `profile_id` con un perfil que sí tenga esos derechos (por id o por nombre — ver el recurso `mcp-glpi://docs/glpi-entity-profile-resolution`); consultar `entityprofile_list` para ver qué perfiles (y entidades asociadas) tiene el usuario.
+
+Esta no es la lista completa de itemtypes de GLPI: es la que ya se probó en esta instancia. Otros itemtypes (`NetworkEquipment`, `Peripheral`, `Printer`, `Contract`, `User`, etc.) también se pueden intentar con `item_list`/`item_get`/`item_delete`/`item_subitem_list` aunque no aparezcan en `item_type_list`; simplemente no hay garantía de que el perfil activo tenga permiso — si falla, el error lo devuelve GLPI (`403`/`400`/`404`), no el servidor.
 
 ## Matriz de rutas y capacidades
 
-Construir las rutas relativas sustituyendo `{id}` por el identificador obtenido. Las opciones `entity_id` y `profile_id` se pueden incluir en todas las herramientas de esta tabla salvo `item_type_list` e `item_subtype_list`.
+Construir las rutas relativas sustituyendo `{id}` por el identificador obtenido. Las opciones `entity_id` y `profile_id` se pueden incluir en todas las herramientas de esta tabla salvo `item_type_list` e `item_subtype_list`. Las filas que siguen cubren los itemtypes ya verificados; cualquier otro itemtype de GLPI (no listado aquí) también funciona con `item_list`/`item_get`/`item_delete`/`item_subitem_list` — simplemente no hay fila de referencia porque no se probó en esta instancia.
 
 | Nombre | Herramienta | URL relativa | Opciones | Puede hacer | No puede hacer |
 | --- | --- | --- | --- | --- | --- |
-| Tipos de elemento | `item_type_list` | — | Sin parámetros. | Descubrir los `itemtype` admitidos. | Consultar, crear o eliminar elementos. |
-| Subtipos de un tipo | `item_subtype_list` | — | `itemtype` opcional. | Descubrir los `subtype` admitidos para un `itemtype`. | Consultar, crear o eliminar un subelemento. |
+| Tipos de elemento | `item_type_list` | — | Sin parámetros. | Listar itemtypes conocidos/verificados (referencia, no una lista cerrada). | Consultar, crear o eliminar elementos. |
+| Subtipos de un tipo | `item_subtype_list` | — | `itemtype` opcional. | Listar subtypes conocidos/verificados para un `itemtype` (referencia, no una lista cerrada). | Consultar, crear o eliminar un subelemento. |
 | Ticket | `item_list` · `item_get` · `item_delete` | `/Ticket` · `/Ticket/{id}` | `itemtype` obligatorio; `id` para get/delete. Listado: `limit`, `offset`, `sort_by`, `order`, `output`, `fields`, `filters`, `expand_dropdowns`, `include_deleted`. Delete: `purge`, `keep_history`. | Listar, consultar y eliminar tickets. | Crear o actualizar tickets. |
 | Change | `item_list` · `item_get` · `item_delete` | `/Change` · `/Change/{id}` | `itemtype` obligatorio; `id` para get/delete. Listado: `limit`, `offset`, `sort_by`, `order`, `output`, `fields`, `filters`, `expand_dropdowns`, `include_deleted`. Delete: `purge`, `keep_history`. | Listar, consultar y eliminar cambios. | Crear o actualizar cambios. |
 | Document | `item_list` · `item_get` · `item_delete` | `/Document` · `/Document/{id}` | `itemtype` obligatorio; `id` para get/delete. Listado: `limit`, `offset`, `sort_by`, `order`, `output`, `fields`, `filters`, `expand_dropdowns`, `include_deleted`. Delete: `purge`, `keep_history`. | Listar, consultar y eliminar documentos. | Subir, descargar o modificar archivos. |

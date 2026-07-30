@@ -8,7 +8,7 @@ No enviar un `entity_id`/`profile_id` (u omitirlo/vacío) sigue significando "us
 
 Si se indica `profile_id` con un nombre y **no** se indica `entity_id`:
 
-1. Se busca ese nombre entre los perfiles del usuario (los mismos que devuelve `profile_list`).
+1. Se busca ese nombre entre los perfiles del usuario (los mismos que devuelve `entityprofile_list`).
 2. Se cambia al perfil encontrado.
 3. Como no se indicó ninguna entidad, se toma automáticamente la **primera** entidad de ese perfil y se opera en ella.
 
@@ -52,7 +52,7 @@ Cuando un nombre de perfil coincide con más de un perfil, o un nombre de entida
 
 Ante ese error, dar más contexto en el siguiente intento: indicar el id numérico directamente, o combinar `profile_id` (para acotar a un perfil concreto) con el nombre de la entidad.
 
-Lo mismo aplica si el nombre no coincide con ningún perfil/entidad: error de validación explícito remitiendo a `profile_list`/`entity_list` para ver los valores disponibles, en vez de continuar con un valor por defecto silencioso.
+Lo mismo aplica si el nombre no coincide con ningún perfil/entidad: error de validación explícito remitiendo a `entityprofile_list` para ver los valores disponibles, en vez de continuar con un valor por defecto silencioso.
 
 ## Notas de implementación relevantes para interpretar los resultados
 

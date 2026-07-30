@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from ..generic import ensure_supported_itemtype
+from ..generic import normalize_itemtype
 from ..shared import (
     ensure_positive_int,
     merge_non_null_values,
@@ -25,7 +25,7 @@ def link_item(
     profile_id: Optional[int] = None,
 ) -> FileMutationResult:
     document_id_int = ensure_positive_int(document_id, "document_id")
-    item_type_str = ensure_supported_itemtype(item_type)
+    item_type_str = normalize_itemtype(item_type)
     item_id_int = ensure_positive_int(item_id, "item_id")
 
     payload: Dict[str, Any] = {

@@ -33,8 +33,7 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 | Herramienta | Descripcion breve |
 |-------------|-------------------|
 | `session_validate` | Muestra informacion de la sesion GLPI activa. |
-| `profile_list` | Lista los perfiles del usuario logueado y las entidades asociadas. |
-| `entity_list` | Lista las entidades GLPI disponibles para el usuario logueado (id, nombre). |
+| `entityprofile_list` | Lista los perfiles del usuario logueado, cada uno con sus entidades asociadas. |
 | `ticket_list` | Lista tickets con filtros, paginacion y distintos formatos. |
 | `change_list` | Lista cambios con filtros, paginacion y distintos formatos. |
 | `ticket_add` | Crea un ticket; soporta campos adicionales. |
@@ -74,15 +73,15 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 
 ### Acceso generico (`item_list` / `item_get` / `item_subitem_list` / `item_delete`)
 
-Ademas de las herramientas especificas, hay herramientas de acceso **generico** a cualquier itemtype/subtype **soportado**, sin necesidad de una tool nueva por combinacion. Las tres primeras son de solo lectura; `item_delete` es la unica mutacion generica:
+Ademas de las herramientas especificas, hay herramientas de acceso **generico** a cualquier itemtype/subtype de GLPI, sin necesidad de una tool nueva por combinacion. Las tres primeras son de solo lectura; `item_delete` es la unica mutacion generica:
 
 - `item_list(itemtype, ...)`: lista elementos del itemtype (equivalente a `GET /{itemtype}`), con `limit`/`offset`/`sort_by`/`order`/`filters`/`output`/`fields`. No lleva `id`.
 - `item_get(itemtype, id, ...)`: obtiene un elemento puntual por id (`GET /{itemtype}/{id}`), con `fields`/`expand_dropdowns`. `id` es obligatorio.
 - `item_subitem_list(itemtype, id, subtype, ...)`: lista sub-items de un elemento (`GET /{itemtype}/{id}/{subtype}`).
 - `item_delete(itemtype, id, ...)`: elimina un elemento (equivalente a `DELETE /{itemtype}/{id}`), con `purge`/`keep_history` igual que `ticket_delete`/`change_delete`.
-- `item_type_list` / `item_subtype_list`: devuelven los itemtypes/subtypes soportados, cada uno con una breve descripcion, para saber que valores son validos antes de llamar a las anteriores.
+- `item_type_list` / `item_subtype_list`: devuelven itemtypes/subtypes **conocidos y verificados** contra una instancia GLPI real, cada uno con una breve descripcion, para orientar sobre valores validos.
 
-Los itemtypes/subtypes soportados son una **lista blanca deliberada, verificada contra una instancia GLPI real** (no una adivinanza de nombres): `Ticket`, `Change`, `Document`, y activos/gestion — `Computer`, `Monitor`, `Software`, `SoftwareVersion`, `Project`, `ProjectTask`, `KnowbaseItem`, `Reminder`, `ContractType`, `Manufacturer`, `DeviceSimcard` — junto con sus sub-recursos (`ITILFollowup`, `ITILSolution`, `Ticket_User`, `Group_Ticket`, `Change_User`, `Change_Group`, `Change_Ticket`, `Document_Item`, `Item_SoftwareVersion`, `ComputerAntivirus`, `ComputerVirtualMachine`, `SoftwareVersion`, `ProjectTask`, y `Ticket` como sub-recurso de un activo/proyecto/articulo). Un `itemtype`/`subtype` fuera de esa lista (por ejemplo `User`, `Config`, `Contract`) devuelve un error de validacion en vez de ejecutarse — este servidor no expone datos de GLPI mas alla de lo verificado, ni siquiera a traves de la ruta generica. Algunos de estos itemtypes (`Computer`, `Monitor`) requieren un perfil con permisos de activos: use `profile_id` (por id o por nombre, ver mas abajo) si el perfil activo por defecto no los tiene habilitados.
+**No es una lista blanca restrictiva**: `ITEMTYPE_CATALOG` (lo que devuelven `item_type_list`/`item_subtype_list`) es una guia de referencia — `Ticket`, `Change`, `Document`, y activos/gestion (`Computer`, `Monitor`, `Software`, `SoftwareVersion`, `Project`, `ProjectTask`, `KnowbaseItem`, `Reminder`, `ContractType`, `Manufacturer`, `DeviceSimcard`) con sus sub-recursos conocidos — pero `item_list`/`item_get`/`item_delete`/`item_subitem_list` **no estan limitados a esos valores**: cualquier itemtype/subtype se reenvia a GLPI tal cual. GLPI es quien valida si el itemtype existe, si el subtype aplica, y si el perfil activo tiene permiso; un itemtype invalido o sin permiso produce el error que GLPI devuelva (404/400/403), no un rechazo previo del servidor. Si `item_list`/`item_get` devuelven `403`/`ERROR_RIGHT_MISSING`, pase `profile_id` (por id o por nombre, ver mas abajo) con un perfil que tenga esos derechos.
 
 `item_list(itemtype="Document", ...)` / `item_get(itemtype="Document", id=...)` permiten buscar/consultar metadata de documentos (nombre, filename, mime, entidad, fecha), e `item_subitem_list(itemtype="Ticket"|"Change", id=..., subtype="Document_Item")` muestra que documentos ya estan vinculados a un ticket o cambio puntual — sin necesidad de una tool dedicada para listar/buscar documentos.
 
@@ -90,7 +89,7 @@ Los itemtypes/subtypes soportados son una **lista blanca deliberada, verificada 
 
 - `file_upload(file_path, ...)`: sube un archivo como Document de GLPI (`POST Document/` multipart/form-data). `file_path` es una ruta local en el sistema de archivos de la maquina donde corre el servidor MCP; `file_name` por defecto es el nombre base de `file_path`.
 - `file_download(document_id, destination_path, ...)`: descarga un Document (`GET Document/:id` con `Accept: application/octet-stream`) y escribe los bytes en `destination_path` (ruta local, se crean los directorios padre si hace falta).
-- `file_link(document_id, item_type, item_id, ...)` / `file_unlink(document_id, link_id, ...)`: crean/eliminan la relacion `Document_Item` entre un documento y un ticket o cambio. `item_type` esta restringido al mismo `ITEMTYPE_CATALOG` que gobierna las herramientas genericas.
+- `file_link(document_id, item_type, item_id, ...)` / `file_unlink(document_id, link_id, ...)`: crean/eliminan la relacion `Document_Item` entre un documento y **cualquier itemtype de GLPI** (no solo Ticket/Change) — GLPI valida si ese itemtype/permiso acepta el vinculo.
 
 Las cuatro aceptan los mismos `entity_id`/`profile_id` opcionales que el resto de las herramientas.
 
@@ -210,7 +209,7 @@ La capa GLPI fue separada por dominio y responsabilidad:
 - `src/mcp_glpi/glpi/changes/`: lectura, creacion, actualizacion, comentarios (agregar/listar), soluciones (agregar/listar), asignaciones, enlaces y borrado.
 - `src/mcp_glpi/glpi/session/`: lectura de sesion, perfiles (listado y cambio de perfil activo) y entidades (listado y cambio de entidad activa) del usuario logueado.
 - `src/mcp_glpi/glpi/files/`: subida (`file_upload`), descarga (`file_download`) y vinculo/desvinculo (`file_link`/`file_unlink`, itemtype `Document_Item`) de documentos.
-- `src/mcp_glpi/glpi/generic.py`: acceso generico a itemtypes/subtypes soportados (`ITEMTYPE_CATALOG`, la lista blanca — incluye `Document`/`Document_Item`), detras de `item_list`/`item_get`/`item_subitem_list`/`item_type_list`/`item_subtype_list` (solo lectura) e `item_delete` (la unica mutacion generica).
+- `src/mcp_glpi/glpi/generic.py`: acceso generico a **cualquier** itemtype/subtype de GLPI (`ITEMTYPE_CATALOG` es una guia de referencia verificada, no una restriccion), detras de `item_list`/`item_get`/`item_subitem_list`/`item_type_list`/`item_subtype_list` (solo lectura) e `item_delete` (la unica mutacion generica).
 - `src/mcp_glpi/glpi/shared.py`: helpers comunes reutilizados por las entidades GLPI, incluyendo `fetch_paginated_items`/`fetch_paginated_subitems` (paginacion, apertura de sesion, cambio de entidad/perfil) y `EntityList.respond()` (dispatch de `output`/`fields`) que comparten `ticket_list`/`change_list`, los listados de seguimientos/soluciones, e `item_list`/`item_subitem_list`.
 
 ## Recursos Utiles

@@ -63,17 +63,10 @@ class CommandHandler:
             return self._success(session_info)
         return self._error("Sesion no valida", error_type="invalid_session")
 
-    def _profile_list(self):
+    def _entityprofile_list(self):
         return self._run_operation(
             "Error retrieving my profiles",
             lambda: self._success(glpi_session.get_my_profiles_data()),
-        )
-
-    def _entity_list(self):
-        recursive = self._get_bool_argument("recursive", False)
-        return self._run_operation(
-            "Error retrieving my entities",
-            lambda: self._success(glpi_session.get_my_entities_data(recursive=recursive)),
         )
 
     def _ticket_list(self):
@@ -775,7 +768,7 @@ class CommandHandler:
 
         Both are normally numeric ids. If either is given as a non-numeric,
         non-blank string, it is treated as a *name* to look up via
-        ``get_my_profiles_data()`` (the same data ``profile_list`` exposes):
+        ``get_my_profiles_data()`` (the same data ``entityprofile_list`` exposes):
 
         - Profile name only (no entity given): switch to that profile, then
           fall back to the first entity in its entity list (since none was
@@ -813,8 +806,8 @@ class CommandHandler:
             matches = [p for p in profiles if str(p.get("name", "")).strip().lower() == needle]
             if not matches:
                 raise ValueError(
-                    f"No se encontro el perfil '{raw_profile}'. Use 'profile_list' para ver los "
-                    "perfiles disponibles."
+                    f"No se encontro el perfil '{raw_profile}'. Use 'entityprofile_list' para ver "
+                    "los perfiles disponibles."
                 )
             if len(matches) > 1:
                 ids = [p.get("id") for p in matches]
@@ -863,8 +856,8 @@ class CommandHandler:
                     f" dentro del perfil '{resolved_profile.get('name')}'" if resolved_profile else ""
                 )
                 raise ValueError(
-                    f"No se encontro la entidad '{raw_entity}'{scope_msg}. Use 'entity_list'/"
-                    "'profile_list' para ver las disponibles."
+                    f"No se encontro la entidad '{raw_entity}'{scope_msg}. Use 'entityprofile_list' "
+                    "para ver las disponibles."
                 )
             if len(candidates) > 1:
                 options = "; ".join(

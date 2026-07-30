@@ -140,9 +140,22 @@ def test_download_document_switches_entity_and_profile(monkeypatch, tmp_path):
     assert calls == [("profile", 24), ("entity", 11)]
 
 
-def test_link_item_rejects_unsupported_item_type():
-    with pytest.raises(ValueError, match="Unsupported itemtype"):
-        files.link_item(document_id=1, item_type="User", item_id=2)
+def test_link_item_accepts_item_type_outside_catalog(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_DummyHandlerBase):
+        def add_items(self, item_type, payload):
+            captured["item_type"] = item_type
+            captured["payload"] = payload
+            return {"id": 9}
+
+    monkeypatch.setattr(files, "RequestHandler", DummyHandler)
+
+    # "User" isn't in ITEMTYPE_CATALOG, but file_link no longer restricts to
+    # it -- GLPI decides whether the itemtype/permission is valid.
+    files.link_item(document_id=1, item_type="User", item_id=2)
+
+    assert captured["payload"]["itemtype"] == "User"
 
 
 def test_link_item_builds_document_item_payload(monkeypatch):

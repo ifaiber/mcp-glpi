@@ -26,8 +26,9 @@ _entity_id_property = {
         "Codigo (id) de la entidad GLPI en la que ejecutar esta operacion. "
         "Si se indica, cambia la entidad activa de la sesion antes de operar "
         "(equivalente a changeActiveEntities); si se omite, se usa la entidad "
-        "activa por defecto de la sesion. Use 'entity_list' para obtener "
-        "los codigos disponibles. Tambien acepta el *nombre* de la entidad "
+        "activa por defecto de la sesion. Use 'entityprofile_list' para "
+        "obtener los codigos disponibles (cada perfil trae su lista de "
+        "entidades asociadas). Tambien acepta el *nombre* de la entidad "
         "(texto no numerico): se busca entre las entidades del usuario y se "
         "resuelve automaticamente a su id (ver el recurso "
         "'mcp-glpi://docs/glpi-entity-profile-resolution' para el detalle "
@@ -43,8 +44,8 @@ _profile_id_property = {
         "determina los permisos (crear/leer/editar) con los que se ejecuta "
         "la operacion; la entidad activa (ver 'entity_id') solo determina "
         "sobre que registros se opera. Si se omite, se usa el perfil activo "
-        "por defecto de la sesion. Use 'profile_list' para ver los perfiles "
-        "disponibles y sus entidades asociadas. Si vas a combinar "
+        "por defecto de la sesion. Use 'entityprofile_list' para ver los "
+        "perfiles disponibles y sus entidades asociadas. Si vas a combinar "
         "'profile_id' y 'entity_id' en la misma llamada, el perfil se "
         "cambia primero. Tambien acepta el *nombre* del perfil (texto no "
         "numerico): se resuelve automaticamente a su id, y si no se indico "
@@ -242,9 +243,10 @@ def _item_subtype_list_schema() -> Dict[str, Any]:
             "itemtype": {
                 "type": ["string", "null"],
                 "description": (
-                    "Filtra los subtypes por este itemtype (uno de "
-                    f"{_SUPPORTED_ITEMTYPES}). Si se omite, lista los subtypes "
-                    "de todos los itemtypes soportados."
+                    "Filtra los subtypes conocidos por este itemtype (por "
+                    f"ejemplo, {_SUPPORTED_ITEMTYPES}, aunque no esta "
+                    "limitado a esta lista). Si se omite, lista los subtypes "
+                    "conocidos de todos los itemtypes documentados."
                 ),
             },
         },
@@ -257,8 +259,12 @@ def _item_list_schema() -> Dict[str, Any]:
     properties = {
         "itemtype": {
             "type": "string",
-            "enum": _SUPPORTED_ITEMTYPES,
-            "description": "Itemtype de GLPI soportado. Use 'item_type_list' para ver todos.",
+            "description": (
+                "Itemtype de GLPI (cualquier itemtype valido de GLPI, no "
+                f"esta limitado a una lista fija; ejemplos conocidos: "
+                f"{_SUPPORTED_ITEMTYPES}). Use 'item_type_list' para ver "
+                "ejemplos. GLPI valida existencia y permisos al ejecutar."
+            ),
         },
     }
     properties.update(copy.deepcopy(_listing_properties))
@@ -268,7 +274,7 @@ def _item_list_schema() -> Dict[str, Any]:
         "required": ["itemtype"],
         "description": (
             "Acceso generico de solo lectura: lista elementos de un itemtype "
-            "soportado (equivalente a GET /{itemtype}). Para obtener un "
+            "de GLPI (equivalente a GET /{itemtype}). Para obtener un "
             "elemento puntual por id use 'item_get'."
         ),
     }
@@ -280,8 +286,11 @@ def _item_get_schema() -> Dict[str, Any]:
         "properties": {
             "itemtype": {
                 "type": "string",
-                "enum": _SUPPORTED_ITEMTYPES,
-                "description": "Itemtype de GLPI soportado. Use 'item_type_list' para ver todos.",
+                "description": (
+                    "Itemtype de GLPI (cualquier itemtype valido de GLPI; "
+                    f"ejemplos conocidos: {_SUPPORTED_ITEMTYPES}). Use "
+                    "'item_type_list' para ver ejemplos."
+                ),
             },
             "id": {
                 "type": ["integer", "string"],
@@ -296,7 +305,7 @@ def _item_get_schema() -> Dict[str, Any]:
         "required": ["itemtype", "id"],
         "description": (
             "Acceso generico de solo lectura a un elemento puntual de un "
-            "itemtype soportado (equivalente a GET /{itemtype}/{id}). Para "
+            "itemtype de GLPI (equivalente a GET /{itemtype}/{id}). Para "
             "listar varios use 'item_list'."
         ),
     }
@@ -306,8 +315,11 @@ def _item_subitem_list_schema() -> Dict[str, Any]:
     properties = {
         "itemtype": {
             "type": "string",
-            "enum": _SUPPORTED_ITEMTYPES,
-            "description": "Itemtype del elemento padre. Use 'item_type_list' para ver todos.",
+            "description": (
+                "Itemtype del elemento padre (cualquier itemtype valido de "
+                f"GLPI; ejemplos conocidos: {_SUPPORTED_ITEMTYPES}). Use "
+                "'item_type_list' para ver ejemplos."
+            ),
         },
         "id": {
             "type": ["integer", "string"],
@@ -316,8 +328,10 @@ def _item_subitem_list_schema() -> Dict[str, Any]:
         "subtype": {
             "type": "string",
             "description": (
-                "Subtype a listar; los validos dependen del itemtype elegido. "
-                "Use 'item_subtype_list' con el mismo itemtype para ver los validos."
+                "Subtype a listar (cualquier subtype valido de GLPI para ese "
+                "itemtype, no esta limitado a una lista fija). Use "
+                "'item_subtype_list' con el mismo itemtype para ver ejemplos "
+                "conocidos."
             ),
         },
         "limit": copy.deepcopy(_listing_properties["limit"]),
@@ -335,8 +349,8 @@ def _item_subitem_list_schema() -> Dict[str, Any]:
         "required": ["itemtype", "id", "subtype"],
         "description": (
             "Acceso generico de solo lectura a sub-items de un elemento "
-            "(equivalente a GET /{itemtype}/{id}/{subtype}), para itemtype/"
-            "subtype soportados."
+            "(equivalente a GET /{itemtype}/{id}/{subtype}); GLPI valida si "
+            "el itemtype/subtype/permiso es correcto al ejecutar."
         ),
     }
 
@@ -347,8 +361,11 @@ def _item_delete_schema() -> Dict[str, Any]:
         "properties": {
             "itemtype": {
                 "type": "string",
-                "enum": _SUPPORTED_ITEMTYPES,
-                "description": "Itemtype de GLPI soportado. Use 'item_type_list' para ver todos.",
+                "description": (
+                    "Itemtype de GLPI (cualquier itemtype valido de GLPI; "
+                    f"ejemplos conocidos: {_SUPPORTED_ITEMTYPES}). Use "
+                    "'item_type_list' para ver ejemplos."
+                ),
             },
             "id": {
                 "type": ["integer", "string"],
@@ -367,9 +384,8 @@ def _item_delete_schema() -> Dict[str, Any]:
         },
         "required": ["itemtype", "id"],
         "description": (
-            "Elimina un elemento de un itemtype soportado (equivalente a "
-            "DELETE /{itemtype}/{id}), a la papelera o con purga definitiva "
-            "si se indica."
+            "Elimina un elemento de GLPI (equivalente a DELETE /{itemtype}/"
+            "{id}), a la papelera o con purga definitiva si se indica."
         ),
     }
 
@@ -648,8 +664,11 @@ def _file_link_schema() -> Dict[str, Any]:
             },
             "item_type": {
                 "type": "string",
-                "enum": _SUPPORTED_ITEMTYPES,
-                "description": "Itemtype al que se vinculara el documento.",
+                "description": (
+                    "Itemtype al que se vinculara el documento (cualquier "
+                    f"itemtype valido de GLPI; ejemplos conocidos: "
+                    f"{_SUPPORTED_ITEMTYPES})."
+                ),
             },
             "item_id": {
                 "type": ["integer", "string"],
@@ -676,29 +695,15 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="_session_validate",
     ),
     ToolSpec(
-        name="profile_list",
-        description="Lista los perfiles del usuario logueado y las entidades asociadas",
-        input_schema={"type": "object", "properties": {}, "required": []},
-        handler_name="_profile_list",
-    ),
-    ToolSpec(
-        name="entity_list",
+        name="entityprofile_list",
         description=(
-            "Lista las entidades GLPI disponibles para el usuario logueado "
-            "(id, nombre y si es recursiva). Util para obtener el codigo de "
-            "entidad a usar con el parametro 'entity_id' de otras herramientas."
+            "Lista los perfiles del usuario logueado, cada uno con sus "
+            "entidades asociadas (id, nombre, is_recursive). Util para "
+            "obtener los codigos a usar con 'profile_id'/'entity_id' de "
+            "otras herramientas."
         ),
-        input_schema={
-            "type": "object",
-            "properties": {
-                "recursive": {
-                    "type": ["boolean", "string", "integer", "null"],
-                    "description": "Incluir entidades hijas de forma recursiva",
-                },
-            },
-            "required": [],
-        },
-        handler_name="_entity_list",
+        input_schema={"type": "object", "properties": {}, "required": []},
+        handler_name="_entityprofile_list",
     ),
     ToolSpec(
         name="ticket_list",

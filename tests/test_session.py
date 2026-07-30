@@ -1,5 +1,4 @@
 from mcp_glpi.glpi import session
-from mcp_glpi.glpi.session import entities as session_entities
 
 
 def test_get_full_session_formats_session_details(monkeypatch):
@@ -88,27 +87,3 @@ def test_get_my_profiles_data_returns_simplified_profiles(monkeypatch):
     assert output[0]['id'] == 22
     assert output[0]['entities'][0]['name'] == 'Administrativo'
     assert output[0]['entities'][0]['is_recursive'] is True
-
-
-def test_get_my_entities_data_returns_simplified_entities(monkeypatch):
-    class DummyHandler:
-        def __init__(self, url, app_token, user_token, verify_tls):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def get_my_entities(self, recursive=False):
-            return [
-                {'id': 2, 'name': 'Administrativo', 'completename': 'Root > Administrativo', 'is_recursive': 1},
-            ]
-
-    monkeypatch.setattr(session_entities, 'open_handler', lambda: DummyHandler('u', 'a', 'u', False))
-
-    output = session_entities.get_my_entities_data()
-    assert output[0]['id'] == 2
-    assert output[0]['name'] == 'Administrativo'
-    assert output[0]['is_recursive'] is True

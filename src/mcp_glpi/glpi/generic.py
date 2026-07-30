@@ -1,13 +1,18 @@
-"""Generic, allowlisted access to GLPI itemtypes and their sub-items.
+"""Generic access to GLPI itemtypes and their sub-items.
 
 Unlike the ticket/change-specific tools, this module lets a caller reach any
-*supported* GLPI itemtype (and, for sub-items, a supported itemtype/subtype
-pair) through one pair of tools instead of a hand-written tool per
-combination. ``ITEMTYPE_CATALOG`` is a deliberate allowlist: it only covers
-itemtypes/subtypes verified against a real GLPI instance, so a caller can't
-reach arbitrary GLPI data (User, Config, Contract, ...) that was never
-verified/meant to be exposed here. Mostly read-only (list/get/list-subitems);
-`delete_item` is the one generic mutation, for the same supported itemtypes.
+GLPI itemtype (and, for sub-items, any itemtype/subtype pair) through one set
+of tools instead of a hand-written tool per combination. ``ITEMTYPE_CATALOG``
+is a **reference list, not a restriction**: it documents itemtypes/subtypes
+already verified against a real GLPI instance, exposed via `item_type_list`/
+`item_subtype_list` so a caller knows good values to try. `item_list`/
+`item_get`/`item_delete`/`item_subitem_list` do not enforce membership in it
+-- any itemtype/subtype string is forwarded to GLPI as-is. GLPI itself is the
+real gatekeeper: an itemtype that doesn't exist, a subtype invalid for that
+itemtype, or a right the active profile lacks all surface as GLPI's own
+error (404/400/403), not a validation error raised before the call is made.
+Mostly read-only (list/get/list-subitems); `delete_item` is the one generic
+mutation.
 """
 
 from __future__ import annotations
@@ -138,31 +143,32 @@ ITEMTYPE_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 
-def ensure_supported_itemtype(itemtype: Any) -> str:
-    itemtype_str = str(itemtype)
-    if itemtype_str not in ITEMTYPE_CATALOG:
-        supported = ", ".join(sorted(ITEMTYPE_CATALOG))
-        raise ValueError(
-            f"Unsupported itemtype '{itemtype_str}'. Supported: {supported}. "
-            "Use 'item_type_list' to see supported values."
-        )
+def normalize_itemtype(itemtype: Any) -> str:
+    """Validate that an itemtype was actually provided; does not restrict it.
+
+    Any non-blank value is forwarded to GLPI as-is. GLPI decides whether the
+    itemtype exists and whether the active profile can access it.
+    """
+    itemtype_str = str(itemtype).strip() if itemtype is not None else ""
+    if not itemtype_str:
+        raise ValueError("itemtype is required")
     return itemtype_str
 
 
-def ensure_supported_subtype(itemtype: Any, subtype: Any) -> str:
-    itemtype_str = ensure_supported_itemtype(itemtype)
-    subtype_str = str(subtype)
-    allowed = ITEMTYPE_CATALOG[itemtype_str]["subtypes"]
-    if subtype_str not in allowed:
-        supported = ", ".join(sorted(allowed))
-        raise ValueError(
-            f"Unsupported subtype '{subtype_str}' for itemtype '{itemtype_str}'. "
-            f"Supported for {itemtype_str}: {supported}. Use 'item_subtype_list' to see supported values."
-        )
+def normalize_subtype(subtype: Any) -> str:
+    """Validate that a subtype was actually provided; does not restrict it.
+
+    Any non-blank value is forwarded to GLPI as-is. GLPI decides whether the
+    subtype is a valid sub-item route for the given itemtype.
+    """
+    subtype_str = str(subtype).strip() if subtype is not None else ""
+    if not subtype_str:
+        raise ValueError("subtype is required")
     return subtype_str
 
 
 def list_itemtypes() -> List[Dict[str, Any]]:
+    """Known/verified itemtypes, for guidance -- not the only ones accepted."""
     return [
         {"itemtype": name, "description": meta["description"]}
         for name, meta in ITEMTYPE_CATALOG.items()
@@ -170,9 +176,15 @@ def list_itemtypes() -> List[Dict[str, Any]]:
 
 
 def list_subtypes(itemtype: Optional[Any] = None) -> List[Dict[str, Any]]:
+    """Known/verified subtypes, for guidance -- not the only ones accepted.
+
+    Filtering by an ``itemtype`` outside ``ITEMTYPE_CATALOG`` simply returns
+    an empty list (no curated subtypes on file for it yet); it does not
+    raise, since ``item_subitem_list`` itself accepts any subtype string.
+    """
     if itemtype is not None:
-        itemtype_str = ensure_supported_itemtype(itemtype)
-        catalog = {itemtype_str: ITEMTYPE_CATALOG[itemtype_str]}
+        itemtype_str = normalize_itemtype(itemtype)
+        catalog = {itemtype_str: ITEMTYPE_CATALOG[itemtype_str]} if itemtype_str in ITEMTYPE_CATALOG else {}
     else:
         catalog = ITEMTYPE_CATALOG
 
@@ -199,7 +211,7 @@ def list_items(
     profile_id: Optional[int] = None,
 ):
     """Generic read: GET /{itemtype}."""
-    itemtype_str = ensure_supported_itemtype(itemtype)
+    itemtype_str = normalize_itemtype(itemtype)
     items, response_range = fetch_paginated_items(
         itemtype_str,
         open_handler,
@@ -229,7 +241,7 @@ def get_item(
     profile_id: Optional[int] = None,
 ):
     """Generic read: GET /{itemtype}/{id}."""
-    itemtype_str = ensure_supported_itemtype(itemtype)
+    itemtype_str = normalize_itemtype(itemtype)
     item_id_int = ensure_positive_int(item_id, "id")
 
     with open_handler() as handler:
@@ -255,8 +267,8 @@ def list_subitems(
     profile_id: Optional[int] = None,
 ):
     """Generic read: GET /{itemtype}/{id}/{subtype}."""
-    itemtype_str = ensure_supported_itemtype(itemtype)
-    subtype_str = ensure_supported_subtype(itemtype_str, subtype)
+    itemtype_str = normalize_itemtype(itemtype)
+    subtype_str = normalize_subtype(subtype)
     item_id_int = ensure_positive_int(item_id, "id")
     items, response_range = fetch_paginated_subitems(
         itemtype_str,
@@ -286,7 +298,7 @@ def delete_item(
     profile_id: Optional[int] = None,
 ) -> EntityMutationResult:
     """Generic delete: DELETE /{itemtype}/{id}."""
-    itemtype_str = ensure_supported_itemtype(itemtype)
+    itemtype_str = normalize_itemtype(itemtype)
     item_id_int = ensure_positive_int(item_id, "id")
     purge_flag = bool(prepare_bool_flag(purge))
     keep_history_flag = bool(prepare_bool_flag(keep_history))
