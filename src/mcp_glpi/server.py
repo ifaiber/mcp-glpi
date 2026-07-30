@@ -17,7 +17,7 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp_glpi.resource_catalog import RESOURCE_SPECS, read_resource_text
 
 
-SERVER_VERSION = "3.0.0"
+SERVER_VERSION = "4.0.0"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
