@@ -20,7 +20,6 @@ ID_ALIASES = {
     "ticket_id": ("ticket_id", "id", "tickets_id"),
     "document_id": ("document_id", "id", "documents_id"),
     "link_id": ("link_id", "relation_id"),
-    "solution_type_id": ("solution_type_id", "solutiontypes_id"),
 }
 COLLECTION_ALIASES = {
     "users": ("user", "user_id", "users_id"),
@@ -192,15 +191,111 @@ class CommandHandler:
             )
         ))
 
-    def _change_solution_add(self):
+    def _assistance_item_followup_update(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
+        followup_id = self.arguments.get("followup_id")
         additional = self._normalize_additional(self.arguments.get("additional"))
-        solution_type_id = self._get_argument_alias("solution_type_id")
-        return self._run_operation("Error adding change solution", lambda: self._wrap_result(
-            glpi_changes.add_solution(
-                change_id=self._get_argument_alias("change_id"),
+        is_private = self._get_bool_argument("is_private", False)
+        if not itemtype or item_id is None or followup_id is None:
+            return self._error(
+                "Los parametros 'itemtype', 'id' y 'followup_id' son obligatorios para assistance_item_followup_update.",
+                error_type="validation_error",
+            )
+        return self._run_operation("Error updating assistance item followup", lambda: self._wrap_result(
+            glpi_assistance.update_assistance_followup(
+                itemtype=itemtype,
+                item_id=item_id,
+                followup_id=followup_id,
                 content=self.arguments.get("content"),
-                solution_type_id=solution_type_id,
+                is_private=is_private,
                 additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _assistance_item_solution_add(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        if not itemtype or item_id is None:
+            return self._error(
+                "Los parametros 'itemtype' e 'id' son obligatorios para assistance_item_solution_add.",
+                error_type="validation_error",
+            )
+        return self._run_operation("Error adding assistance item solution", lambda: self._wrap_result(
+            glpi_assistance.add_assistance_solution(
+                itemtype=itemtype,
+                item_id=item_id,
+                content=self.arguments.get("content"),
+                additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _assistance_item_solution_update(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
+        solution_id = self.arguments.get("solution_id")
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        if not itemtype or item_id is None or solution_id is None:
+            return self._error(
+                "Los parametros 'itemtype', 'id' y 'solution_id' son obligatorios para assistance_item_solution_update.",
+                error_type="validation_error",
+            )
+        return self._run_operation("Error updating assistance item solution", lambda: self._wrap_result(
+            glpi_assistance.update_assistance_solution(
+                itemtype=itemtype,
+                item_id=item_id,
+                solution_id=solution_id,
+                content=self.arguments.get("content"),
+                additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _assistance_item_ticketchange_link(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
+        link_id = self.arguments.get("link_id")
+        if not itemtype or item_id is None or link_id is None:
+            return self._error(
+                "Los parametros 'itemtype', 'id' y 'link_id' son obligatorios para assistance_item_ticketchange_link.",
+                error_type="validation_error",
+            )
+        additional = self._normalize_additional(self.arguments.get("additional"))
+        return self._run_operation("Error linking ticket to change", lambda: self._wrap_result(
+            glpi_assistance.link_ticket_change(
+                itemtype=itemtype,
+                item_id=item_id,
+                link_id=link_id,
+                additional_fields=additional,
+                entity_id=self._get_entity_id(),
+                profile_id=self._get_profile_id(),
+            )
+        ))
+
+    def _assistance_item_ticketchange_unlink(self):
+        itemtype = self.arguments.get("itemtype")
+        item_id = self.arguments.get("id")
+        link_id = self.arguments.get("link_id")
+        if not itemtype or item_id is None or link_id is None:
+            return self._error(
+                "Los parametros 'itemtype', 'id' y 'link_id' son obligatorios para assistance_item_ticketchange_unlink.",
+                error_type="validation_error",
+            )
+        purge = self.arguments.get("purge", False)
+        keep_history = self.arguments.get("keep_history", True)
+        return self._run_operation("Error unlinking ticket/change", lambda: self._wrap_result(
+            glpi_assistance.unlink_ticket_change(
+                itemtype=itemtype,
+                item_id=item_id,
+                link_id=link_id,
+                purge=purge,
+                keep_history=keep_history,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )
@@ -239,100 +334,6 @@ class CommandHandler:
                 itemtype=itemtype,
                 item_id=item_id,
                 groups=groups,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _ticket_solution_add(self):
-        additional = self._normalize_additional(self.arguments.get("additional"))
-        solution_type_id = self._get_argument_alias("solution_type_id")
-        return self._run_operation("Error adding ticket solution", lambda: self._wrap_result(
-            glpi_tickets.add_solution(
-                ticket_id=self._get_argument_alias("ticket_id"),
-                content=self.arguments.get("content"),
-                solution_type_id=solution_type_id,
-                additional_fields=additional,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _change_ticket_link(self):
-        change_id = self._get_argument_alias("change_id")
-        ticket_id = self._get_from_arguments("ticket_id", "ticket", "tickets_id")
-        if change_id is None or ticket_id is None:
-            return self._error(
-                "Los parametros 'change_id' y 'ticket_id' son obligatorios.",
-                error_type="validation_error",
-            )
-        additional = self._normalize_additional(self.arguments.get("additional"))
-        return self._run_operation("Error linking change to ticket", lambda: self._wrap_result(
-            glpi_changes.link_ticket(
-                change_id=change_id,
-                ticket_id=ticket_id,
-                additional_fields=additional,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _ticket_change_link(self):
-        ticket_id = self._get_argument_alias("ticket_id")
-        change_id = self._get_from_arguments("change_id", "change", "changes_id")
-        if ticket_id is None or change_id is None:
-            return self._error(
-                "Los parametros 'ticket_id' y 'change_id' son obligatorios.",
-                error_type="validation_error",
-            )
-        additional = self._normalize_additional(self.arguments.get("additional"))
-        return self._run_operation("Error linking ticket to change", lambda: self._wrap_result(
-            glpi_tickets.link_change(
-                ticket_id=ticket_id,
-                change_id=change_id,
-                additional_fields=additional,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _change_ticket_unlink(self):
-        change_id = self._get_argument_alias("change_id")
-        link_id = self._get_argument_alias("link_id")
-        if change_id is None or link_id is None:
-            return self._error(
-                "Los parametros 'change_id' y 'link_id' son obligatorios.",
-                error_type="validation_error",
-            )
-        purge = self.arguments.get("purge", False)
-        keep_history = self.arguments.get("keep_history", True)
-        return self._run_operation("Error unlinking change ticket", lambda: self._wrap_result(
-            glpi_changes.unlink_ticket(
-                change_id=change_id,
-                link_id=link_id,
-                purge=purge,
-                keep_history=keep_history,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _ticket_change_unlink(self):
-        ticket_id = self._get_argument_alias("ticket_id")
-        link_id = self._get_argument_alias("link_id")
-        if ticket_id is None or link_id is None:
-            return self._error(
-                "Los parametros 'ticket_id' y 'link_id' son obligatorios.",
-                error_type="validation_error",
-            )
-        purge = self.arguments.get("purge", False)
-        keep_history = self.arguments.get("keep_history", True)
-        return self._run_operation("Error unlinking ticket change", lambda: self._wrap_result(
-            glpi_tickets.unlink_change(
-                ticket_id=ticket_id,
-                link_id=link_id,
-                purge=purge,
-                keep_history=keep_history,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )

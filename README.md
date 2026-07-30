@@ -38,15 +38,14 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 | `change_list` | Lista cambios con filtros, paginacion y distintos formatos. |
 | `ticket_add` | Crea un ticket; soporta campos adicionales. |
 | `change_add` | Crea un cambio; soporta campos adicionales. |
-| `ticket_solution_add` | Registra una solucion de ticket. |
-| `change_solution_add` | Registra una solucion de cambio. |
 | `assistance_item_user_add` | Asigna usuarios a un Ticket o Change (itemtype indica cual). |
 | `assistance_item_group_add` | Asigna grupos a un Ticket o Change (itemtype indica cual). |
 | `assistance_item_followup_add` | Agrega un comentario (ITILFollowup) a un Ticket o Change. |
-| `change_ticket_link` | Vincula un ticket existente a un cambio. |
-| `ticket_change_link` | Vincula un cambio existente a un ticket. |
-| `change_ticket_unlink` | Elimina la relacion Change_Ticket desde un cambio. |
-| `ticket_change_unlink` | Elimina la relacion Change_Ticket desde un ticket. |
+| `assistance_item_followup_update` | Actualiza un comentario existente en un Ticket o Change. |
+| `assistance_item_solution_add` | Registra una solucion (ITILSolution) en un Ticket o Change. |
+| `assistance_item_solution_update` | Actualiza una solucion existente en un Ticket o Change. |
+| `assistance_item_ticketchange_link` | Vincula un ticket y un cambio existentes (Change_Ticket). |
+| `assistance_item_ticketchange_unlink` | Elimina una relacion Change_Ticket existente. |
 | `change_update` | Actualiza campos de un cambio. |
 | `ticket_update` | Actualiza campos de un ticket. |
 | `ticket_delete` | Elimina un ticket (papelera o purga definitiva). |
@@ -109,6 +108,44 @@ Esto envia a GLPI `POST Change_User`/`POST Group_Ticket` con `{"input":[{"change
 ```
 
 Esto envia a GLPI `POST ITILFollowup` con `{"input":[{"itemtype":"Change","items_id":2620,"content":"pruebas de ticketssss","is_private":0}]}`.
+
+### Actualizar comentarios (`assistance_item_followup_update`)
+
+Misma forma que `assistance_item_followup_add`, con `followup_id` agregado (el id propio del comentario, distinto de `id`, que sigue siendo el ticket/cambio):
+
+```json
+{"itemtype":"Change","id":2620,"followup_id":20016,"content":"xxxxx de ticketssss","is_private":0}
+```
+
+Esto envia a GLPI `PATCH ITILFollowup` con `{"input":[{"id":20016,"itemtype":"Change","items_id":2620,"content":"xxxxx de ticketssss","is_private":0}]}`.
+
+### Agregar/actualizar soluciones (`assistance_item_solution_add` / `assistance_item_solution_update`)
+
+`ticket_solution_add`/`change_solution_add` se reemplazaron por `assistance_item_solution_add`: igual que ITILFollowup, ITILSolution ya es itemtype-generico en GLPI, asi que unificar solo requiere el `itemtype` correcto. `assistance_item_solution_update` agrega `solution_id` (el id propio de la solucion) sobre la misma forma. Ninguna de las dos recibe `solution_type_id`:
+
+```json
+{"itemtype":"Change","id":2620,"content":"solucion de prueba"}
+```
+
+```json
+{"itemtype":"Change","id":2620,"solution_id":555,"content":"solucion actualizada"}
+```
+
+### Vincular/desvincular Ticket y Change (`assistance_item_ticketchange_link` / `assistance_item_ticketchange_unlink`)
+
+`ticket_change_link`/`change_ticket_link` y `ticket_change_unlink`/`change_ticket_unlink` se reemplazan por una sola herramienta cada uno: ambos pares eran mecanicamente identicos (mismo `POST`/`DELETE /Change_Ticket`), solo con nombres y orden de parametros distintos — no habia ninguna logica dependiente de "que lado" se llamaba.
+
+`assistance_item_ticketchange_link` recibe `itemtype` (`"Ticket"` o `"Change"`), `id` (el id de ese lado) y `link_id` — aqui **`link_id` es el id del lado complementario** (un `change_id` si `itemtype` es `"Ticket"`, o un `ticket_id` si `itemtype` es `"Change"`):
+
+```json
+{"itemtype":"Ticket","id":47,"link_id":2620}
+```
+
+`assistance_item_ticketchange_unlink` recibe la misma forma que `assistance_item_ticketchange_link` (`itemtype`, `id`, `link_id` con el mismo significado: el lado complementario), en vez del id de la relacion `Change_Ticket` en si — referenciar ese id opaco directamente es dificil (obliga a consultar `item_subitem_list` antes). La herramienta resuelve internamente cual relacion borrar:
+
+```json
+{"itemtype":"Ticket","id":47,"link_id":2620,"purge":true}
+```
 
 Todas las herramientas que operan sobre un ticket o cambio (creacion, listados, comentarios, soluciones, asignaciones, enlaces, actualizacion y borrado) aceptan dos parametros opcionales:
 

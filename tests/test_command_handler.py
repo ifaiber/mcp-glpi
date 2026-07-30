@@ -946,3 +946,171 @@ def test_assistance_item_followup_add_forwards_arguments(monkeypatch):
     assert captured['content'] == 'pruebas de ticketssss'
     assert captured['is_private'] is False
     assert captured['entity_id'] == 6
+
+
+def test_assistance_item_followup_update_requires_itemtype_id_and_followup_id():
+    response = CommandHandler('assistance_item_followup_update', {'content': 'hola'}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_assistance_item_followup_update_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_update_assistance_followup(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Updated follow-up 20016 on Change 2620',
+            payload={'id': 2620, 'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_assistance, 'update_assistance_followup', fake_update_assistance_followup)
+
+    response = CommandHandler(
+        'assistance_item_followup_update',
+        {
+            'itemtype': 'Change',
+            'id': 2620,
+            'followup_id': 20016,
+            'content': 'xxxxx de ticketssss',
+            'is_private': 0,
+            'entity_id': '6',
+        },
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['itemtype'] == 'Change'
+    assert captured['item_id'] == 2620
+    assert captured['followup_id'] == 20016
+    assert captured['content'] == 'xxxxx de ticketssss'
+    assert captured['is_private'] is False
+    assert captured['entity_id'] == 6
+
+
+def test_assistance_item_solution_add_requires_itemtype_and_id():
+    response = CommandHandler('assistance_item_solution_add', {'content': 'sol'}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_assistance_item_solution_add_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_add_assistance_solution(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Added solution to Change 2620',
+            payload={'id': 2620, 'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_assistance, 'add_assistance_solution', fake_add_assistance_solution)
+
+    response = CommandHandler(
+        'assistance_item_solution_add',
+        {'itemtype': 'Change', 'id': 2620, 'content': 'sol'},
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['itemtype'] == 'Change'
+    assert captured['item_id'] == 2620
+    assert captured['content'] == 'sol'
+    assert 'solution_type_id' not in captured
+
+
+def test_assistance_item_solution_update_requires_itemtype_id_and_solution_id():
+    response = CommandHandler('assistance_item_solution_update', {'content': 'sol'}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_assistance_item_solution_update_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_update_assistance_solution(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Updated solution 555 on Change 2620',
+            payload={'id': 2620, 'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_assistance, 'update_assistance_solution', fake_update_assistance_solution)
+
+    response = CommandHandler(
+        'assistance_item_solution_update',
+        {'itemtype': 'Change', 'id': 2620, 'solution_id': 555, 'content': 'sol actualizada'},
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['itemtype'] == 'Change'
+    assert captured['item_id'] == 2620
+    assert captured['solution_id'] == 555
+    assert captured['content'] == 'sol actualizada'
+
+
+def test_assistance_item_ticketchange_link_requires_itemtype_id_and_link_id():
+    response = CommandHandler('assistance_item_ticketchange_link', {}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_assistance_item_ticketchange_link_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_link_ticket_change(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Linked ticket 47 to change 2620',
+            payload={'id': 47, 'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_assistance, 'link_ticket_change', fake_link_ticket_change)
+
+    response = CommandHandler(
+        'assistance_item_ticketchange_link',
+        {'itemtype': 'Ticket', 'id': 47, 'link_id': 2620},
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['itemtype'] == 'Ticket'
+    assert captured['item_id'] == 47
+    assert captured['link_id'] == 2620
+
+
+def test_assistance_item_ticketchange_unlink_requires_link_id():
+    response = CommandHandler('assistance_item_ticketchange_unlink', {}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_assistance_item_ticketchange_unlink_forwards_arguments(monkeypatch):
+    captured = {}
+
+    def fake_unlink_ticket_change(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Unlinked ticket/change relation 9001',
+            payload={'id': 9001, 'response': {}},
+        )
+
+    monkeypatch.setattr(glpi_assistance, 'unlink_ticket_change', fake_unlink_ticket_change)
+
+    response = CommandHandler(
+        'assistance_item_ticketchange_unlink',
+        {'itemtype': 'Ticket', 'id': 47, 'link_id': 2623, 'purge': True},
+    ).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['itemtype'] == 'Ticket'
+    assert captured['item_id'] == 47
+    assert captured['link_id'] == 2623
+    assert captured['purge'] is True
