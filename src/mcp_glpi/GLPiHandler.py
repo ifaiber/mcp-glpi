@@ -104,34 +104,6 @@ class CommandHandler:
 
         return self._success(result)
 
-    def _list_sub_items(self, id_field: str, fetcher: Callable[..., Any]):
-        item_id = self._get_argument_alias(id_field)
-        if item_id is None:
-            return self._error(
-                f"El parametro '{id_field}' es obligatorio.",
-                error_type="validation_error",
-            )
-        limit = self._get_int_argument("limit", 20)
-        offset = self._get_int_argument("offset", 0)
-        sort_by = self.arguments.get("sort_by")
-        order = self.arguments.get("order", "DESC")
-        output = self.arguments.get("output", "dict")
-        fields = self._normalize_fields(self.arguments.get("fields"))
-
-        return self._run_operation("Error listing sub-items", lambda: self._success(
-            fetcher(
-                item_id,
-                limit=limit,
-                offset=offset,
-                sort_by=sort_by,
-                order=order,
-                output=output,
-                fields=fields,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
     def _change_add(self):
         name = self.arguments.get("name")
         if not name:
@@ -211,9 +183,6 @@ class CommandHandler:
             )
         ))
 
-    def _change_follow_list(self):
-        return self._list_sub_items("change_id", glpi_changes.list_followups)
-
     def _change_solution_add(self):
         additional = self._normalize_additional(self.arguments.get("additional"))
         solution_type_id = self._get_argument_alias("solution_type_id")
@@ -227,9 +196,6 @@ class CommandHandler:
                 profile_id=self._get_profile_id(),
             )
         ))
-
-    def _change_solution_list(self):
-        return self._list_sub_items("change_id", glpi_changes.list_solutions)
 
     def _change_user_assign(self):
         users = self._get_collection_alias("users")
@@ -267,9 +233,6 @@ class CommandHandler:
             )
         ))
 
-    def _ticket_follow_list(self):
-        return self._list_sub_items("ticket_id", glpi_tickets.list_followups)
-
     def _ticket_solution_add(self):
         additional = self._normalize_additional(self.arguments.get("additional"))
         solution_type_id = self._get_argument_alias("solution_type_id")
@@ -283,9 +246,6 @@ class CommandHandler:
                 profile_id=self._get_profile_id(),
             )
         ))
-
-    def _ticket_solution_list(self):
-        return self._list_sub_items("ticket_id", glpi_tickets.list_solutions)
 
     def _ticket_user_assign(self):
         users = self._get_collection_alias("users")

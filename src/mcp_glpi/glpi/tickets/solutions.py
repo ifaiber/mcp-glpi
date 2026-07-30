@@ -2,30 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence, Union
-
-from glpi_client import SortOrder
+from typing import Any, Dict, Optional
 
 from ..shared import (
-    EntityList,
     ensure_non_empty_text,
     ensure_positive_int,
-    fetch_paginated_subitems,
     merge_non_null_values,
-    prepare_generic_item,
     switch_active_entity,
     switch_active_profile,
 )
 from .common import TicketMutationResult, open_handler
-
-SOLUTION_DEFAULT_FIELDS: Sequence[str] = (
-    "id",
-    "date_creation",
-    "users_id",
-    "solutiontypes_id",
-    "status",
-    "content",
-)
 
 
 def add_solution(
@@ -62,33 +48,3 @@ def add_solution(
         response=response,
     )
 
-
-def list_solutions(
-    ticket_id: Any,
-    *,
-    limit: Optional[int] = 20,
-    offset: int = 0,
-    sort_by: Optional[str] = None,
-    order: Union[SortOrder, str] = SortOrder.Descending,
-    output: str = "dict",
-    fields: Optional[Sequence[str]] = None,
-    entity_id: Optional[int] = None,
-    profile_id: Optional[int] = None,
-):
-    ticket_id_int = ensure_positive_int(ticket_id, "ticket_id")
-    items, response_range = fetch_paginated_subitems(
-        "Ticket",
-        ticket_id_int,
-        "ITILSolution",
-        open_handler,
-        limit=limit,
-        offset=offset,
-        sort_by=sort_by,
-        order=order,
-        entity_id=entity_id,
-        profile_id=profile_id,
-    )
-    solution_list = EntityList(
-        item_key="solutions", items=items, response_range=response_range, prepare_item=prepare_generic_item
-    )
-    return solution_list.respond(output, fields, default_fields=SOLUTION_DEFAULT_FIELDS)

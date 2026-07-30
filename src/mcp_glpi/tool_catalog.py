@@ -206,29 +206,6 @@ def _listing_schema(description: str) -> Dict[str, Any]:
     }
 
 
-def _sub_item_listing_schema(item_field: str, item_label: str, description: str) -> Dict[str, Any]:
-    properties = {
-        item_field: {
-            "type": ["integer", "string"],
-            "description": f"Identificador del {item_label}",
-        },
-        "limit": copy.deepcopy(_listing_properties["limit"]),
-        "offset": copy.deepcopy(_listing_properties["offset"]),
-        "sort_by": copy.deepcopy(_listing_properties["sort_by"]),
-        "order": copy.deepcopy(_listing_properties["order"]),
-        "output": copy.deepcopy(_listing_properties["output"]),
-        "fields": copy.deepcopy(_listing_properties["fields"]),
-        "entity_id": _entity_id_property,
-        "profile_id": _profile_id_property,
-    }
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": [item_field],
-        "description": description,
-    }
-
-
 _SUPPORTED_ITEMTYPES = sorted(ITEMTYPE_CATALOG.keys())
 
 
@@ -740,26 +717,10 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="_ticket_follow_add",
     ),
     ToolSpec(
-        name="ticket_follow_list",
-        description="Lista los comentarios (seguimientos, ITILFollowup) de un ticket",
-        input_schema=_sub_item_listing_schema(
-            "ticket_id", "ticket", "Parametros para listar seguimientos de un ticket"
-        ),
-        handler_name="_ticket_follow_list",
-    ),
-    ToolSpec(
         name="ticket_solution_add",
         description="Registra una solucion para un ticket",
         input_schema=_solution_schema("ticket_id", "ticket"),
         handler_name="_ticket_solution_add",
-    ),
-    ToolSpec(
-        name="ticket_solution_list",
-        description="Lista las soluciones (ITILSolution) de un ticket",
-        input_schema=_sub_item_listing_schema(
-            "ticket_id", "ticket", "Parametros para listar soluciones de un ticket"
-        ),
-        handler_name="_ticket_solution_list",
     ),
     ToolSpec(
         name="ticket_user_assign",
@@ -792,26 +753,10 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="_change_follow_add",
     ),
     ToolSpec(
-        name="change_follow_list",
-        description="Lista los comentarios (seguimientos, ITILFollowup) de un cambio",
-        input_schema=_sub_item_listing_schema(
-            "change_id", "cambio", "Parametros para listar seguimientos de un cambio"
-        ),
-        handler_name="_change_follow_list",
-    ),
-    ToolSpec(
         name="change_solution_add",
         description="Registra una solucion para un cambio",
         input_schema=_solution_schema("change_id", "cambio"),
         handler_name="_change_solution_add",
-    ),
-    ToolSpec(
-        name="change_solution_list",
-        description="Lista las soluciones (ITILSolution) de un cambio",
-        input_schema=_sub_item_listing_schema(
-            "change_id", "cambio", "Parametros para listar soluciones de un cambio"
-        ),
-        handler_name="_change_solution_list",
     ),
     ToolSpec(
         name="change_user_assign",
