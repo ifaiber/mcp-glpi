@@ -195,9 +195,11 @@ _def_bool = ["boolean", "string", "integer", "null"]
 
 
 def _listing_schema(description: str) -> Dict[str, Any]:
+    properties = copy.deepcopy(_listing_properties)
+    del properties["output"]
     return {
         "type": "object",
-        "properties": copy.deepcopy(_listing_properties),
+        "properties": properties,
         "required": [],
         "description": description,
     }
@@ -364,14 +366,28 @@ def _item_delete_schema() -> Dict[str, Any]:
     }
 
 
-def _creation_schema(description: str) -> Dict[str, Any]:
-    properties = copy.deepcopy(_creation_properties)
+def _save_schema(item_label: str) -> Dict[str, Any]:
+    properties: Dict[str, Any] = {
+        "id": {
+            "type": ["integer", "string", "null"],
+            "description": (
+                f"Identificador del {item_label} a actualizar. Si se omite, se "
+                f"crea un {item_label} nuevo (en ese caso 'name' es obligatorio)."
+            ),
+        }
+    }
+    properties.update(copy.deepcopy(_creation_properties))
     properties["pr_links"] = copy.deepcopy(_pr_links_property)
     return {
         "type": "object",
         "properties": properties,
-        "required": ["name"],
-        "description": description,
+        "required": [],
+        "description": (
+            f"Crea o actualiza un {item_label}. Sin 'id': crea uno nuevo "
+            "('name' obligatorio). Con 'id': actualiza el existente (todos "
+            "los demas campos son opcionales; solo se envian los que se "
+            "indiquen)."
+        ),
     }
 
 
@@ -389,71 +405,48 @@ def _assistance_subitem_base_properties() -> Dict[str, Any]:
     }
 
 
-def _assistance_followup_schema() -> Dict[str, Any]:
-    properties = _assistance_subitem_base_properties()
-    properties.update(copy.deepcopy(_comment_base_properties))
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": ["itemtype", "id", "content"],
-        "description": (
-            "Parametros para agregar un comentario (ITILFollowup) a un Ticket "
-            "o Change. A diferencia de Ticket_User/Change_User, ITILFollowup ya "
-            "es itemtype-generico en GLPI (campos 'itemtype'/'items_id'), asi "
-            "que solo cambia el valor de 'itemtype' segun corresponda."
-        ),
-    }
-
-
-def _assistance_followup_update_schema() -> Dict[str, Any]:
+def _item_followup_add_schema() -> Dict[str, Any]:
     properties = _assistance_subitem_base_properties()
     properties["followup_id"] = {
-        "type": ["integer", "string"],
-        "description": "Identificador del comentario (ITILFollowup) a actualizar.",
+        "type": ["integer", "string", "null"],
+        "description": (
+            "Identificador del comentario (ITILFollowup) a actualizar. Si se "
+            "omite, se crea un comentario nuevo."
+        ),
     }
     properties.update(copy.deepcopy(_comment_base_properties))
     return {
         "type": "object",
         "properties": properties,
-        "required": ["itemtype", "id", "followup_id", "content"],
+        "required": ["itemtype", "id", "content"],
         "description": (
-            "Parametros para actualizar un comentario (ITILFollowup) existente "
-            "en un Ticket o Change. Misma forma que assistance_item_followup_add, "
-            "con el agregado de 'followup_id' (el id propio del comentario)."
+            "Crea un comentario (ITILFollowup) nuevo en un Ticket o Change, o "
+            "actualiza uno existente si se envia 'followup_id'. A diferencia "
+            "de Ticket_User/Change_User, ITILFollowup ya es itemtype-generico "
+            "en GLPI (campos 'itemtype'/'items_id'), asi que solo cambia el "
+            "valor de 'itemtype' segun corresponda."
         ),
     }
 
 
-def _assistance_solution_schema() -> Dict[str, Any]:
+def _add_item_solution_schema() -> Dict[str, Any]:
     properties = _assistance_subitem_base_properties()
+    properties["solution_id"] = {
+        "type": ["integer", "string", "null"],
+        "description": (
+            "Identificador de la solucion (ITILSolution) a actualizar. Si se "
+            "omite, se crea una solucion nueva."
+        ),
+    }
     properties.update(copy.deepcopy(_solution_base_properties))
     return {
         "type": "object",
         "properties": properties,
         "required": ["itemtype", "id", "content"],
         "description": (
-            "Parametros para agregar una solucion (ITILSolution) a un Ticket "
-            "o Change. Igual que ITILFollowup, ITILSolution ya es "
-            "itemtype-generico en GLPI (campos 'itemtype'/'items_id')."
-        ),
-    }
-
-
-def _assistance_solution_update_schema() -> Dict[str, Any]:
-    properties = _assistance_subitem_base_properties()
-    properties["solution_id"] = {
-        "type": ["integer", "string"],
-        "description": "Identificador de la solucion (ITILSolution) a actualizar.",
-    }
-    properties.update(copy.deepcopy(_solution_base_properties))
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": ["itemtype", "id", "solution_id", "content"],
-        "description": (
-            "Parametros para actualizar una solucion (ITILSolution) existente "
-            "en un Ticket o Change. Misma forma que assistance_item_solution_add, "
-            "con el agregado de 'solution_id' (el id propio de la solucion)."
+            "Crea una solucion (ITILSolution) nueva en un Ticket o Change, o "
+            "actualiza una existente si se envia 'solution_id'. ITILSolution "
+            "ya es itemtype-generico en GLPI (campos 'itemtype'/'items_id')."
         ),
     }
 
@@ -503,21 +496,30 @@ def _assistance_assignment_schema(
     actor_label: str,
     actors_key: str,
     subtype_hint: str,
+    *,
+    allow_multiple: bool = True,
 ) -> Dict[str, Any]:
     actor_schema = _actor_schema(actor_id_field, actor_label)
+    if allow_multiple:
+        actors_property = _actors_property(actor_schema, f"Listado de {actors_key} a asignar")
+    else:
+        actors_property = dict(actor_schema)
+        actors_property["description"] = (
+            f"El {actor_label} a asignar (un solo objeto, no una lista)."
+        )
     return {
         "type": "object",
         "properties": {
             "itemtype": {
                 "type": "string",
                 "enum": sorted(ASSISTANCE_ITEMTYPES.keys()),
-                "description": f"Itemtype al que se asignan los {actors_key} (Ticket o Change).",
+                "description": f"Itemtype al que se asigna el/los {actors_key} (Ticket o Change).",
             },
             "id": {
                 "type": ["integer", "string"],
                 "description": "Identificador del Ticket o Change segun 'itemtype'.",
             },
-            actors_key: _actors_property(actor_schema, f"Listado de {actors_key} a asignar"),
+            actors_key: actors_property,
             "entity_id": _entity_id_property,
             "profile_id": _profile_id_property,
         },
@@ -608,55 +610,11 @@ def _assistance_ticketchange_unlink_schema() -> Dict[str, Any]:
         "required": ["itemtype", "id", "link_id"],
         "description": (
             "Elimina la relacion Change_Ticket entre un ticket y un cambio. "
-            "Misma forma que assistance_item_ticketchange_link (itemtype+id "
+            "Misma forma que item_ticketchange_link (itemtype+id "
             "identifican un lado, link_id el lado complementario); el id "
             "propio de la relacion Change_Ticket se resuelve internamente "
             "antes de eliminarla."
         ),
-    }
-
-
-def _delete_schema(item_field: str, item_label: str) -> Dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            item_field: {
-                "type": ["integer", "string"],
-                "description": f"Identificador del {item_label}",
-            },
-            "purge": {
-                "type": _def_bool,
-                "description": "Forzar purga (borrado definitivo) en lugar de enviar a la papelera",
-            },
-            "keep_history": {
-                "type": _def_bool,
-                "description": "Mantener historial de GLPI",
-            },
-            "entity_id": _entity_id_property,
-            "profile_id": _profile_id_property,
-        },
-        "required": [item_field],
-    }
-
-
-def _update_schema(item_field: str, item_label: str) -> Dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            item_field: {
-                "type": ["integer", "string"],
-                "description": f"Identificador del {item_label}",
-            },
-            "fields": {
-                "type": "object",
-                "additionalProperties": True,
-                "description": "Campos a actualizar",
-            },
-            "pr_links": copy.deepcopy(_pr_links_property),
-            "entity_id": _entity_id_property,
-            "profile_id": _profile_id_property,
-        },
-        "required": [item_field, "fields"],
     }
 
 
@@ -784,91 +742,86 @@ TOOL_SPECS: List[ToolSpec] = [
         handler_name="_change_list",
     ),
     ToolSpec(
-        name="ticket_add",
-        description="Crea un ticket en GLPI usando glpi_client",
-        input_schema=_creation_schema(
-            "Parametros para crear un ticket (los campos adicionales van en 'additional')"
-        ),
-        handler_name="_ticket_add",
-    ),
-    ToolSpec(
-        name="change_add",
-        description="Crea un cambio en GLPI usando glpi_client",
-        input_schema=_creation_schema(
-            "Parametros para crear un cambio (los campos adicionales van en 'additional')"
-        ),
-        handler_name="_change_add",
-    ),
-    ToolSpec(
-        name="assistance_item_user_add",
+        name="ticket_save",
         description=(
-            "Asigna usuarios a un Ticket o Change (Ticket_User/Change_User). "
-            "Reemplaza a ticket_user_assign/change_user_assign: itemtype "
-            "decide internamente el campo (tickets_id/changes_id) y el "
-            "subtype (Ticket_User/Change_User) correctos."
+            "Crea o actualiza un ticket. Reemplaza a ticket_add/ticket_update/"
+            "save_tickets: sin 'id' crea un ticket nuevo ('name' obligatorio); "
+            "con 'id' actualiza el existente usando los mismos parametros con "
+            "nombre (solo se envian los que se indiquen)."
+        ),
+        input_schema=_save_schema("ticket"),
+        handler_name="_ticket_save",
+    ),
+    ToolSpec(
+        name="change_save",
+        description=(
+            "Crea o actualiza un cambio. Reemplaza a change_add/change_update/"
+            "save_changes: sin 'id' crea un cambio nuevo ('name' obligatorio); "
+            "con 'id' actualiza el existente usando los mismos parametros con "
+            "nombre (solo se envian los que se indiquen)."
+        ),
+        input_schema=_save_schema("cambio"),
+        handler_name="_change_save",
+    ),
+    ToolSpec(
+        name="item_user_add",
+        description=(
+            "Asigna un usuario a un Ticket o Change (Ticket_User/Change_User). "
+            "Reemplaza a ticket_user_assign/change_user_assign/"
+            "assistance_item_user_add: itemtype decide internamente el campo "
+            "(tickets_id/changes_id) y el subtype (Ticket_User/Change_User) "
+            "correctos. Un solo usuario por llamada (no una lista), aunque "
+            "GLPI admite un bulk POST -- se restringe para una interfaz mas "
+            "simple."
         ),
         input_schema=_assistance_assignment_schema(
-            "users_id", "usuario", "users", "Ticket_User/Change_User"
+            "users_id", "usuario", "users", "Ticket_User/Change_User",
+            allow_multiple=False,
         ),
-        handler_name="_assistance_item_user_add",
+        handler_name="_item_user_add",
     ),
     ToolSpec(
-        name="assistance_item_group_add",
+        name="item_group_add",
         description=(
-            "Asigna grupos a un Ticket o Change (Group_Ticket/Change_Group). "
-            "Reemplaza a ticket_group_assign/change_group_assign: itemtype "
-            "decide internamente el campo (tickets_id/changes_id) y el "
-            "subtype (Group_Ticket/Change_Group) correctos."
+            "Asigna un grupo a un Ticket o Change (Group_Ticket/Change_Group). "
+            "Reemplaza a ticket_group_assign/change_group_assign/"
+            "assistance_item_group_add: itemtype decide internamente el campo "
+            "(tickets_id/changes_id) y el subtype (Group_Ticket/Change_Group) "
+            "correctos. Un solo grupo por llamada (no una lista), aunque GLPI "
+            "admite un bulk POST -- se restringe para una interfaz mas simple."
         ),
         input_schema=_assistance_assignment_schema(
-            "groups_id", "grupo", "groups", "Group_Ticket/Change_Group"
+            "groups_id", "grupo", "groups", "Group_Ticket/Change_Group",
+            allow_multiple=False,
         ),
-        handler_name="_assistance_item_group_add",
+        handler_name="_item_group_add",
     ),
     ToolSpec(
-        name="assistance_item_followup_add",
+        name="item_followup_add",
         description=(
-            "Agrega un comentario (ITILFollowup) a un Ticket o Change. "
-            "Reemplaza a ticket_follow_add/change_follow_add: ITILFollowup ya "
-            "es itemtype-generico en GLPI, asi que solo cambia el valor de "
-            "'itemtype' segun corresponda."
+            "Crea o actualiza un comentario (ITILFollowup) en un Ticket o "
+            "Change. Sin 'followup_id' crea uno nuevo; con 'followup_id' "
+            "actualiza el existente -- mismo patron crear-o-actualizar que "
+            "ticket_save/change_save/item_solution_add. Reemplaza a "
+            "assistance_item_followup_add/assistance_item_followup_update."
         ),
-        input_schema=_assistance_followup_schema(),
-        handler_name="_assistance_item_followup_add",
+        input_schema=_item_followup_add_schema(),
+        handler_name="_item_followup_add",
     ),
     ToolSpec(
-        name="assistance_item_followup_update",
+        name="item_solution_add",
         description=(
-            "Actualiza un comentario (ITILFollowup) existente en un Ticket o "
-            "Change. Misma forma que assistance_item_followup_add, con "
-            "'followup_id' (id propio del comentario) agregado."
+            "Crea o actualiza una solucion (ITILSolution) en un Ticket o Change. "
+            "Sin 'solution_id' crea una solucion nueva; con 'solution_id' "
+            "actualiza la existente -- mismo patron crear-o-actualizar que "
+            "ticket_save/change_save. Reemplaza a "
+            "assistance_item_solution_add/assistance_item_solution_update."
         ),
-        input_schema=_assistance_followup_update_schema(),
-        handler_name="_assistance_item_followup_update",
+        input_schema=_add_item_solution_schema(),
+        handler_name="_item_solution_add",
     ),
     ToolSpec(
-        name="assistance_item_solution_add",
-        description=(
-            "Registra una solucion (ITILSolution) en un Ticket o Change. "
-            "Reemplaza a ticket_solution_add/change_solution_add: ITILSolution ya "
-            "es itemtype-generico en GLPI (igual que ITILFollowup), asi que solo "
-            "cambia el valor de 'itemtype' segun corresponda."
-        ),
-        input_schema=_assistance_solution_schema(),
-        handler_name="_assistance_item_solution_add",
-    ),
-    ToolSpec(
-        name="assistance_item_solution_update",
-        description=(
-            "Actualiza una solucion (ITILSolution) existente en un Ticket o "
-            "Change. Misma forma que assistance_item_solution_add, con "
-            "'solution_id' (id propio de la solucion) agregado."
-        ),
-        input_schema=_assistance_solution_update_schema(),
-        handler_name="_assistance_item_solution_update",
-    ),
-    ToolSpec(
-        name="assistance_item_ticketchange_link",
+        name="item_ticketchange_link",
         description=(
             "Vincula un ticket y un cambio existentes (Change_Ticket). "
             "Reemplaza a ticket_change_link/change_ticket_link: ambos eran "
@@ -877,43 +830,19 @@ TOOL_SPECS: List[ToolSpec] = [
             "un lado, link_id identifica el lado complementario."
         ),
         input_schema=_assistance_ticketchange_link_schema(),
-        handler_name="_assistance_item_ticketchange_link",
+        handler_name="_item_ticketchange_link",
     ),
     ToolSpec(
-        name="assistance_item_ticketchange_unlink",
+        name="item_ticketchange_unlink",
         description=(
             "Elimina la relacion Change_Ticket entre un ticket y un cambio. "
             "Reemplaza a ticket_change_unlink/change_ticket_unlink. Misma "
-            "forma que assistance_item_ticketchange_link (itemtype+id "
+            "forma que item_ticketchange_link (itemtype+id "
             "identifican un lado, link_id el lado complementario); resuelve "
             "internamente el id de la relacion antes de eliminarla."
         ),
         input_schema=_assistance_ticketchange_unlink_schema(),
-        handler_name="_assistance_item_ticketchange_unlink",
-    ),
-    ToolSpec(
-        name="change_update",
-        description="Actualiza campos de un cambio",
-        input_schema=_update_schema("change_id", "cambio"),
-        handler_name="_change_update",
-    ),
-    ToolSpec(
-        name="ticket_update",
-        description="Actualiza campos de un ticket",
-        input_schema=_update_schema("ticket_id", "ticket"),
-        handler_name="_ticket_update",
-    ),
-    ToolSpec(
-        name="ticket_delete",
-        description="Elimina un ticket (a la papelera, o con purga definitiva si se indica)",
-        input_schema=_delete_schema("ticket_id", "ticket"),
-        handler_name="_ticket_delete",
-    ),
-    ToolSpec(
-        name="change_delete",
-        description="Elimina un cambio (a la papelera, o con purga definitiva si se indica)",
-        input_schema=_delete_schema("change_id", "cambio"),
-        handler_name="_change_delete",
+        handler_name="_item_ticketchange_unlink",
     ),
     ToolSpec(
         name="item_type_list",

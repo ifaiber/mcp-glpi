@@ -40,9 +40,9 @@ def test_glpi_items_resource_covers_asset_itemtypes():
 
 def test_glpi_tools_resource_covers_specific_tools():
     text = resource_catalog.read_resource_text("mcp-glpi://docs/glpi-tools")
-    assert "ticket_add" in text
+    assert "ticket_save" in text
     assert "file_upload" in text
-    assert "assistance_item_ticketchange_link" in text
+    assert "item_ticketchange_link" in text
 
 
 def test_glpi_entity_profile_resolution_resource_covers_both_cases():

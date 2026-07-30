@@ -11,14 +11,13 @@ only the ``itemtype`` value itself changes between Ticket and Change.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Union
 
 from glpi_client import RequestHandler as GLPIRequestHandler
 
 from ..common.config import get_config
 from .shared import (
     EntityMutationResult,
-    compact_payload,
     ensure_non_empty_text,
     ensure_positive_int,
     fetch_paginated_subitems,
@@ -60,18 +59,31 @@ def _resolve_assistance_itemtype(itemtype: Any) -> str:
     return itemtype_str
 
 
-def assign_assistance_users(
+def assign_assistance_user(
     itemtype: Any,
     item_id: Any,
-    users: Union[Dict[str, Any], Sequence[Any], Any],
+    users: Union[Dict[str, Any], Any],
     *,
     entity_id: Optional[int] = None,
     profile_id: Optional[int] = None,
 ) -> EntityMutationResult:
-    """Assign users to a Ticket or Change: POST /Ticket_User or POST /Change_User."""
+    """Assign a single user to a Ticket or Change: POST /Ticket_User or POST /Change_User.
+
+    GLPI's Ticket_User/Change_User POST accepts a bulk list of users, but this
+    tool intentionally restricts to one user per call for a simpler, less
+    error-prone interface -- a list is rejected rather than silently
+    processed. ``type`` (the role: 1 requester, 2 assigned, 3 observer) is
+    optional; GLPI itself defaults it to 1 (requester) when omitted.
+    """
     itemtype_str = _resolve_assistance_itemtype(itemtype)
     item_id_int = ensure_positive_int(item_id, "id")
     meta = ASSISTANCE_ITEMTYPES[itemtype_str]
+
+    if isinstance(users, (list, tuple)):
+        raise ValueError(
+            "users debe ser un solo usuario (objeto), no una lista -- esta "
+            "herramienta admite un usuario por llamada."
+        )
 
     normalized = normalize_actor_entries(
         item_id_int,
@@ -80,7 +92,7 @@ def assign_assistance_users(
         item_id_field=meta["id_field"],
         entry_name="users",
     )
-    payload_to_send = compact_payload(normalized)
+    payload_to_send = normalized[0]
 
     with open_handler() as handler:
         switch_active_profile(handler, profile_id)
@@ -88,27 +100,40 @@ def assign_assistance_users(
         response = handler.add_items(meta["user_subtype"], payload_to_send)
 
     return EntityMutationResult(
-        action="assistance_item_user_add",
+        action="item_user_add",
         entity_id_field="id",
         entity_id=item_id_int,
-        description=f"Assigned {len(normalized)} user(s) to {itemtype_str} {item_id_int}",
+        description=f"Assigned user to {itemtype_str} {item_id_int}",
         payload=payload_to_send,
         response=response,
     )
 
 
-def assign_assistance_groups(
+def assign_assistance_group(
     itemtype: Any,
     item_id: Any,
-    groups: Union[Dict[str, Any], Sequence[Any], Any],
+    groups: Union[Dict[str, Any], Any],
     *,
     entity_id: Optional[int] = None,
     profile_id: Optional[int] = None,
 ) -> EntityMutationResult:
-    """Assign groups to a Ticket or Change: POST /Group_Ticket or POST /Change_Group."""
+    """Assign a single group to a Ticket or Change: POST /Group_Ticket or POST /Change_Group.
+
+    GLPI's Group_Ticket/Change_Group POST accepts a bulk list of groups, but
+    this tool intentionally restricts to one group per call for a simpler,
+    less error-prone interface -- a list is rejected rather than silently
+    processed. ``type`` (the role: 1 requester, 2 assigned, 3 observer) is
+    optional; GLPI itself defaults it to 1 (requester) when omitted.
+    """
     itemtype_str = _resolve_assistance_itemtype(itemtype)
     item_id_int = ensure_positive_int(item_id, "id")
     meta = ASSISTANCE_ITEMTYPES[itemtype_str]
+
+    if isinstance(groups, (list, tuple)):
+        raise ValueError(
+            "groups debe ser un solo grupo (objeto), no una lista -- esta "
+            "herramienta admite un grupo por llamada."
+        )
 
     normalized = normalize_actor_entries(
         item_id_int,
@@ -117,7 +142,7 @@ def assign_assistance_groups(
         item_id_field=meta["id_field"],
         entry_name="groups",
     )
-    payload_to_send = compact_payload(normalized)
+    payload_to_send = normalized[0]
 
     with open_handler() as handler:
         switch_active_profile(handler, profile_id)
@@ -125,10 +150,10 @@ def assign_assistance_groups(
         response = handler.add_items(meta["group_subtype"], payload_to_send)
 
     return EntityMutationResult(
-        action="assistance_item_group_add",
+        action="item_group_add",
         entity_id_field="id",
         entity_id=item_id_int,
-        description=f"Assigned {len(normalized)} group(s) to {itemtype_str} {item_id_int}",
+        description=f"Assigned group to {itemtype_str} {item_id_int}",
         payload=payload_to_send,
         response=response,
     )
@@ -217,6 +242,46 @@ def update_assistance_followup(
     )
 
 
+def save_assistance_followup(
+    itemtype: Any,
+    item_id: Any,
+    content: Any,
+    *,
+    followup_id: Any = None,
+    is_private: bool | Any = False,
+    additional_fields: Optional[Dict[str, Any]] = None,
+    entity_id: Optional[int] = None,
+    profile_id: Optional[int] = None,
+) -> EntityMutationResult:
+    """Create or update a follow-up/comment on a Ticket or Change.
+
+    Creates a new ITILFollowup when ``followup_id`` is omitted, updates the
+    existing one otherwise -- same create-or-update dispatch as
+    ``save_ticket``/``save_change`` and ``add_item_solution``, composed over
+    the unchanged ``add_assistance_followup``/``update_assistance_followup``.
+    """
+    if followup_id is None:
+        return add_assistance_followup(
+            itemtype,
+            item_id,
+            content,
+            is_private=is_private,
+            additional_fields=additional_fields,
+            entity_id=entity_id,
+            profile_id=profile_id,
+        )
+    return update_assistance_followup(
+        itemtype,
+        item_id,
+        followup_id,
+        content,
+        is_private=is_private,
+        additional_fields=additional_fields,
+        entity_id=entity_id,
+        profile_id=profile_id,
+    )
+
+
 def add_assistance_solution(
     itemtype: Any,
     item_id: Any,
@@ -292,6 +357,43 @@ def update_assistance_solution(
     )
 
 
+def add_item_solution(
+    itemtype: Any,
+    item_id: Any,
+    content: Any,
+    *,
+    solution_id: Any = None,
+    additional_fields: Optional[Dict[str, Any]] = None,
+    entity_id: Optional[int] = None,
+    profile_id: Optional[int] = None,
+) -> EntityMutationResult:
+    """Create or update a solution on a Ticket or Change.
+
+    Creates a new ITILSolution when ``solution_id`` is omitted, updates the
+    existing one otherwise -- same create-or-update dispatch as
+    ``save_ticket``/``save_change``, composed over the unchanged
+    ``add_assistance_solution``/``update_assistance_solution``.
+    """
+    if solution_id is None:
+        return add_assistance_solution(
+            itemtype,
+            item_id,
+            content,
+            additional_fields=additional_fields,
+            entity_id=entity_id,
+            profile_id=profile_id,
+        )
+    return update_assistance_solution(
+        itemtype,
+        item_id,
+        solution_id,
+        content,
+        additional_fields=additional_fields,
+        entity_id=entity_id,
+        profile_id=profile_id,
+    )
+
+
 def link_ticket_change(
     itemtype: Any,
     item_id: Any,
@@ -327,7 +429,7 @@ def link_ticket_change(
         response = handler.add_items("Change_Ticket", payload)
 
     return EntityMutationResult(
-        action="assistance_item_ticketchange_link",
+        action="item_ticketchange_link",
         entity_id_field="id",
         entity_id=item_id_int,
         description=f"Linked ticket {ticket_id_int} to change {change_id_int}",
@@ -398,7 +500,7 @@ def unlink_ticket_change(
         )
 
     return EntityMutationResult(
-        action="assistance_item_ticketchange_unlink",
+        action="item_ticketchange_unlink",
         entity_id_field="id",
         entity_id=relation_id,
         description=f"Unlinked ticket {ticket_id_int} from change {change_id_int} (relation {relation_id})",

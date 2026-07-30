@@ -25,20 +25,19 @@ def test_markdown_documents_have_headings():
         assert '#' in content, f'Expected at least one heading in {path.name}'
 
 
-def test_create_and_update_change_schema_expose_pr_links():
+def test_save_schemas_expose_pr_links():
     import mcp_glpi.GLPITools as tools
 
     def get_tool_schema(name):
         tool = next(t for t in tools.tools if t.name == name)
         return tool.inputSchema
 
-    create_schema = get_tool_schema('change_add')
-    update_schema = get_tool_schema('change_update')
-
-    for schema in (create_schema, update_schema):
+    for tool_name in ('ticket_save', 'change_save'):
+        schema = get_tool_schema(tool_name)
         properties = schema['properties']
         assert 'pr_links' in properties
-        assert schema.get('required') and 'pr_links' not in schema['required']
+        assert 'pr_links' not in (schema.get('required') or [])
+        assert 'id' in properties
         pr_links = properties['pr_links']
         any_of_types = {option['type'] for option in pr_links['anyOf']}
         assert {'string', 'array'}.issubset(any_of_types)

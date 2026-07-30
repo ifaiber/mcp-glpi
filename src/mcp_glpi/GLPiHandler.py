@@ -16,8 +16,6 @@ from mcp_glpi.tool_catalog import TOOL_SPECS
 logger = logging.getLogger(__name__)
 COMMAND_HANDLERS = {spec.name: spec.handler_name for spec in TOOL_SPECS}
 ID_ALIASES = {
-    "change_id": ("change_id", "id", "changes_id"),
-    "ticket_id": ("ticket_id", "id", "tickets_id"),
     "document_id": ("document_id", "id", "documents_id"),
     "link_id": ("link_id", "relation_id"),
 }
@@ -80,7 +78,6 @@ class CommandHandler:
         offset = self._get_int_argument("offset", 0)
         sort_by = self.arguments.get("sort_by", "date_mod")
         order = self.arguments.get("order", "DESC")
-        output = self.arguments.get("output", "dict")
         fields = self._normalize_fields(self.arguments.get("fields"))
         filters = self._normalize_filters(self.arguments.get("filters"))
         expand_dropdowns = self._get_bool_argument("expand_dropdowns", False)
@@ -96,7 +93,6 @@ class CommandHandler:
             filters=filters,
             expand_dropdowns=expand_dropdowns,
             include_deleted=include_deleted,
-            output=output,
             fields=fields,
             entity_id=entity_id,
             profile_id=profile_id,
@@ -104,11 +100,12 @@ class CommandHandler:
 
         return self._success(result)
 
-    def _change_add(self):
+    def _change_save(self):
+        id_value = self.arguments.get("id")
         name = self.arguments.get("name")
-        if not name:
+        if id_value is None and not name:
             return self._error(
-                "El parametro 'name' es obligatorio para change_add.",
+                "El parametro 'name' es obligatorio para change_save cuando no se indica 'id'.",
                 error_type="validation_error",
             )
         content = self.arguments.get("content")
@@ -122,10 +119,11 @@ class CommandHandler:
         additional = self._normalize_additional(self.arguments.get("additional"))
         additional = self._merge_pr_links(additional)
 
-        return self._run_operation("Error creating change", lambda: self._wrap_result(
-            glpi_changes.create_change(
+        return self._run_operation("Error saving change", lambda: self._wrap_result(
+            glpi_changes.save_change(
+                id=id_value,
                 name=name,
-                content="" if content is None else str(content),
+                content=content,
                 status=status,
                 impact=impact,
                 priority=priority,
@@ -137,11 +135,12 @@ class CommandHandler:
             )
         ))
 
-    def _ticket_add(self):
+    def _ticket_save(self):
+        id_value = self.arguments.get("id")
         name = self.arguments.get("name")
-        if not name:
+        if id_value is None and not name:
             return self._error(
-                "El parametro 'name' es obligatorio para ticket_add.",
+                "El parametro 'name' es obligatorio para ticket_save cuando no se indica 'id'.",
                 error_type="validation_error",
             )
         content = self.arguments.get("content")
@@ -153,11 +152,13 @@ class CommandHandler:
         entity_id = self._get_entity_id()
         profile_id = self._get_profile_id()
         additional = self._normalize_additional(self.arguments.get("additional"))
+        additional = self._merge_pr_links(additional)
 
-        return self._run_operation("Error creating ticket", lambda: self._wrap_result(
-            glpi_tickets.create_ticket(
+        return self._run_operation("Error saving ticket", lambda: self._wrap_result(
+            glpi_tickets.save_ticket(
+                id=id_value,
                 name=name,
-                content="" if content is None else str(content),
+                content=content,
                 status=status,
                 impact=impact,
                 priority=priority,
@@ -169,45 +170,23 @@ class CommandHandler:
             )
         ))
 
-    def _assistance_item_followup_add(self):
-        itemtype = self.arguments.get("itemtype")
-        item_id = self.arguments.get("id")
-        additional = self._normalize_additional(self.arguments.get("additional"))
-        is_private = self._get_bool_argument("is_private", False)
-        if not itemtype or item_id is None:
-            return self._error(
-                "Los parametros 'itemtype' e 'id' son obligatorios para assistance_item_followup_add.",
-                error_type="validation_error",
-            )
-        return self._run_operation("Error adding assistance item followup", lambda: self._wrap_result(
-            glpi_assistance.add_assistance_followup(
-                itemtype=itemtype,
-                item_id=item_id,
-                content=self.arguments.get("content"),
-                is_private=is_private,
-                additional_fields=additional,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _assistance_item_followup_update(self):
+    def _item_followup_add(self):
         itemtype = self.arguments.get("itemtype")
         item_id = self.arguments.get("id")
         followup_id = self.arguments.get("followup_id")
         additional = self._normalize_additional(self.arguments.get("additional"))
         is_private = self._get_bool_argument("is_private", False)
-        if not itemtype or item_id is None or followup_id is None:
+        if not itemtype or item_id is None:
             return self._error(
-                "Los parametros 'itemtype', 'id' y 'followup_id' son obligatorios para assistance_item_followup_update.",
+                "Los parametros 'itemtype' e 'id' son obligatorios para item_followup_add.",
                 error_type="validation_error",
             )
-        return self._run_operation("Error updating assistance item followup", lambda: self._wrap_result(
-            glpi_assistance.update_assistance_followup(
+        return self._run_operation("Error saving assistance item followup", lambda: self._wrap_result(
+            glpi_assistance.save_assistance_followup(
                 itemtype=itemtype,
                 item_id=item_id,
-                followup_id=followup_id,
                 content=self.arguments.get("content"),
+                followup_id=followup_id,
                 is_private=is_private,
                 additional_fields=additional,
                 entity_id=self._get_entity_id(),
@@ -215,55 +194,35 @@ class CommandHandler:
             )
         ))
 
-    def _assistance_item_solution_add(self):
-        itemtype = self.arguments.get("itemtype")
-        item_id = self.arguments.get("id")
-        additional = self._normalize_additional(self.arguments.get("additional"))
-        if not itemtype or item_id is None:
-            return self._error(
-                "Los parametros 'itemtype' e 'id' son obligatorios para assistance_item_solution_add.",
-                error_type="validation_error",
-            )
-        return self._run_operation("Error adding assistance item solution", lambda: self._wrap_result(
-            glpi_assistance.add_assistance_solution(
-                itemtype=itemtype,
-                item_id=item_id,
-                content=self.arguments.get("content"),
-                additional_fields=additional,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _assistance_item_solution_update(self):
+    def _item_solution_add(self):
         itemtype = self.arguments.get("itemtype")
         item_id = self.arguments.get("id")
         solution_id = self.arguments.get("solution_id")
         additional = self._normalize_additional(self.arguments.get("additional"))
-        if not itemtype or item_id is None or solution_id is None:
+        if not itemtype or item_id is None:
             return self._error(
-                "Los parametros 'itemtype', 'id' y 'solution_id' son obligatorios para assistance_item_solution_update.",
+                "Los parametros 'itemtype' e 'id' son obligatorios para item_solution_add.",
                 error_type="validation_error",
             )
-        return self._run_operation("Error updating assistance item solution", lambda: self._wrap_result(
-            glpi_assistance.update_assistance_solution(
+        return self._run_operation("Error saving assistance item solution", lambda: self._wrap_result(
+            glpi_assistance.add_item_solution(
                 itemtype=itemtype,
                 item_id=item_id,
-                solution_id=solution_id,
                 content=self.arguments.get("content"),
+                solution_id=solution_id,
                 additional_fields=additional,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )
         ))
 
-    def _assistance_item_ticketchange_link(self):
+    def _item_ticketchange_link(self):
         itemtype = self.arguments.get("itemtype")
         item_id = self.arguments.get("id")
         link_id = self.arguments.get("link_id")
         if not itemtype or item_id is None or link_id is None:
             return self._error(
-                "Los parametros 'itemtype', 'id' y 'link_id' son obligatorios para assistance_item_ticketchange_link.",
+                "Los parametros 'itemtype', 'id' y 'link_id' son obligatorios para item_ticketchange_link.",
                 error_type="validation_error",
             )
         additional = self._normalize_additional(self.arguments.get("additional"))
@@ -278,13 +237,13 @@ class CommandHandler:
             )
         ))
 
-    def _assistance_item_ticketchange_unlink(self):
+    def _item_ticketchange_unlink(self):
         itemtype = self.arguments.get("itemtype")
         item_id = self.arguments.get("id")
         link_id = self.arguments.get("link_id")
         if not itemtype or item_id is None or link_id is None:
             return self._error(
-                "Los parametros 'itemtype', 'id' y 'link_id' son obligatorios para assistance_item_ticketchange_unlink.",
+                "Los parametros 'itemtype', 'id' y 'link_id' son obligatorios para item_ticketchange_unlink.",
                 error_type="validation_error",
             )
         purge = self.arguments.get("purge", False)
@@ -301,17 +260,17 @@ class CommandHandler:
             )
         ))
 
-    def _assistance_item_user_add(self):
+    def _item_user_add(self):
         itemtype = self.arguments.get("itemtype")
         item_id = self.arguments.get("id")
         users = self._get_collection_alias("users")
         if not itemtype or item_id is None:
             return self._error(
-                "Los parametros 'itemtype' e 'id' son obligatorios para assistance_item_user_add.",
+                "Los parametros 'itemtype' e 'id' son obligatorios para item_user_add.",
                 error_type="validation_error",
             )
-        return self._run_operation("Error assigning assistance item users", lambda: self._wrap_result(
-            glpi_assistance.assign_assistance_users(
+        return self._run_operation("Error assigning assistance item user", lambda: self._wrap_result(
+            glpi_assistance.assign_assistance_user(
                 itemtype=itemtype,
                 item_id=item_id,
                 users=users,
@@ -320,109 +279,20 @@ class CommandHandler:
             )
         ))
 
-    def _assistance_item_group_add(self):
+    def _item_group_add(self):
         itemtype = self.arguments.get("itemtype")
         item_id = self.arguments.get("id")
         groups = self._get_collection_alias("groups")
         if not itemtype or item_id is None:
             return self._error(
-                "Los parametros 'itemtype' e 'id' son obligatorios para assistance_item_group_add.",
+                "Los parametros 'itemtype' e 'id' son obligatorios para item_group_add.",
                 error_type="validation_error",
             )
-        return self._run_operation("Error assigning assistance item groups", lambda: self._wrap_result(
-            glpi_assistance.assign_assistance_groups(
+        return self._run_operation("Error assigning assistance item group", lambda: self._wrap_result(
+            glpi_assistance.assign_assistance_group(
                 itemtype=itemtype,
                 item_id=item_id,
                 groups=groups,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _change_update(self):
-        change_id = self._get_argument_alias("change_id")
-        fields = self._get_mapping_alias("fields")
-        if change_id is None:
-            return self._error(
-                "El parametro 'change_id' es obligatorio para change_update.",
-                error_type="validation_error",
-            )
-        if fields is None:
-            return self._error(
-                "El parametro 'fields' es obligatorio y debe ser un objeto JSON.",
-                error_type="validation_error",
-            )
-        fields = self._merge_pr_links(fields, target_key="controlistcontent")
-        return self._run_operation(
-            "Error updating change",
-            lambda: self._wrap_result(
-                glpi_changes.update_change(
-                    change_id=change_id,
-                    fields=fields,
-                    entity_id=self._get_entity_id(),
-                    profile_id=self._get_profile_id(),
-                )
-            ),
-        )
-
-    def _ticket_update(self):
-        ticket_id = self._get_argument_alias("ticket_id")
-        fields = self._get_mapping_alias("fields")
-        if ticket_id is None:
-            return self._error(
-                "El parametro 'ticket_id' es obligatorio para ticket_update.",
-                error_type="validation_error",
-            )
-        if fields is None:
-            return self._error(
-                "El parametro 'fields' es obligatorio y debe ser un objeto JSON.",
-                error_type="validation_error",
-            )
-        return self._run_operation(
-            "Error updating ticket",
-            lambda: self._wrap_result(
-                glpi_tickets.update_ticket(
-                    ticket_id=ticket_id,
-                    fields=fields,
-                    entity_id=self._get_entity_id(),
-                    profile_id=self._get_profile_id(),
-                )
-            ),
-        )
-
-    def _ticket_delete(self):
-        ticket_id = self._get_argument_alias("ticket_id")
-        if ticket_id is None:
-            return self._error(
-                "El parametro 'ticket_id' es obligatorio para ticket_delete.",
-                error_type="validation_error",
-            )
-        purge = self.arguments.get("purge", False)
-        keep_history = self.arguments.get("keep_history", True)
-        return self._run_operation("Error deleting ticket", lambda: self._wrap_result(
-            glpi_tickets.delete_ticket(
-                ticket_id=ticket_id,
-                purge=purge,
-                keep_history=keep_history,
-                entity_id=self._get_entity_id(),
-                profile_id=self._get_profile_id(),
-            )
-        ))
-
-    def _change_delete(self):
-        change_id = self._get_argument_alias("change_id")
-        if change_id is None:
-            return self._error(
-                "El parametro 'change_id' es obligatorio para change_delete.",
-                error_type="validation_error",
-            )
-        purge = self.arguments.get("purge", False)
-        keep_history = self.arguments.get("keep_history", True)
-        return self._run_operation("Error deleting change", lambda: self._wrap_result(
-            glpi_changes.delete_change(
-                change_id=change_id,
-                purge=purge,
-                keep_history=keep_history,
                 entity_id=self._get_entity_id(),
                 profile_id=self._get_profile_id(),
             )

@@ -34,22 +34,16 @@ Las herramientas expuestas por `GLPITools` se registran automaticamente en el se
 |-------------|-------------------|
 | `session_validate` | Muestra informacion de la sesion GLPI activa. |
 | `entityprofile_list` | Lista los perfiles del usuario logueado, cada uno con sus entidades asociadas. |
-| `ticket_list` | Lista tickets con filtros, paginacion y distintos formatos. |
-| `change_list` | Lista cambios con filtros, paginacion y distintos formatos. |
-| `ticket_add` | Crea un ticket; soporta campos adicionales. |
-| `change_add` | Crea un cambio; soporta campos adicionales. |
-| `assistance_item_user_add` | Asigna usuarios a un Ticket o Change (itemtype indica cual). |
-| `assistance_item_group_add` | Asigna grupos a un Ticket o Change (itemtype indica cual). |
-| `assistance_item_followup_add` | Agrega un comentario (ITILFollowup) a un Ticket o Change. |
-| `assistance_item_followup_update` | Actualiza un comentario existente en un Ticket o Change. |
-| `assistance_item_solution_add` | Registra una solucion (ITILSolution) en un Ticket o Change. |
-| `assistance_item_solution_update` | Actualiza una solucion existente en un Ticket o Change. |
-| `assistance_item_ticketchange_link` | Vincula un ticket y un cambio existentes (Change_Ticket). |
-| `assistance_item_ticketchange_unlink` | Elimina una relacion Change_Ticket existente. |
-| `change_update` | Actualiza campos de un cambio. |
-| `ticket_update` | Actualiza campos de un ticket. |
-| `ticket_delete` | Elimina un ticket (papelera o purga definitiva). |
-| `change_delete` | Elimina un cambio (papelera o purga definitiva). |
+| `ticket_list` | Lista tickets con filtros y paginacion; siempre responde JSON. |
+| `change_list` | Lista cambios con filtros y paginacion; siempre responde JSON. |
+| `ticket_save` | Crea o actualiza un ticket (`id` decide cual). |
+| `change_save` | Crea o actualiza un cambio (`id` decide cual). |
+| `item_user_add` | Asigna un usuario a un Ticket o Change (itemtype indica cual). |
+| `item_group_add` | Asigna un grupo a un Ticket o Change (itemtype indica cual). |
+| `item_followup_add` | Crea o actualiza un comentario (ITILFollowup) en un Ticket o Change. |
+| `item_solution_add` | Crea o actualiza una solucion (ITILSolution) en un Ticket o Change. |
+| `item_ticketchange_link` | Vincula un ticket y un cambio existentes (Change_Ticket). |
+| `item_ticketchange_unlink` | Elimina una relacion Change_Ticket existente. |
 | `item_type_list` | Lista los itemtypes de GLPI soportados por `item_list`/`item_get`/`item_subitem_list`. |
 | `item_subtype_list` | Lista los subtypes soportados por `item_subitem_list` (opcionalmente filtrados por itemtype). |
 | `item_list` | Acceso generico de solo lectura: lista elementos de un itemtype soportado. |
@@ -70,12 +64,26 @@ Ademas de las herramientas especificas, hay herramientas de acceso **generico** 
 - `item_list(itemtype, ...)`: lista elementos del itemtype (equivalente a `GET /{itemtype}`), con `limit`/`offset`/`sort_by`/`order`/`filters`/`output`/`fields`. No lleva `id`.
 - `item_get(itemtype, id, ...)`: obtiene un elemento puntual por id (`GET /{itemtype}/{id}`), con `fields`/`expand_dropdowns`. `id` es obligatorio.
 - `item_subitem_list(itemtype, id, subtype, ...)`: lista sub-items de un elemento (`GET /{itemtype}/{id}/{subtype}`).
-- `item_delete(itemtype, id, ...)`: elimina un elemento (equivalente a `DELETE /{itemtype}/{id}`), con `purge`/`keep_history` igual que `ticket_delete`/`change_delete`.
+- `item_delete(itemtype, id, ...)`: elimina un elemento (equivalente a `DELETE /{itemtype}/{id}`), con `purge`/`keep_history`. No hay tools dedicadas `ticket_delete`/`change_delete`: eran una duplicacion exacta de `item_delete(itemtype="Ticket"|"Change", ...)`, asi que se eliminaron.
 - `item_type_list` / `item_subtype_list`: devuelven itemtypes/subtypes **conocidos y verificados** contra una instancia GLPI real, cada uno con una breve descripcion, para orientar sobre valores validos.
 
 **No es una lista blanca restrictiva**: `ITEMTYPE_CATALOG` (lo que devuelven `item_type_list`/`item_subtype_list`) es una guia de referencia — `Ticket`, `Change`, `Document`, y activos/gestion (`Computer`, `Monitor`, `Software`, `SoftwareVersion`, `Project`, `ProjectTask`, `KnowbaseItem`, `Reminder`, `ContractType`, `Manufacturer`, `DeviceSimcard`) con sus sub-recursos conocidos — pero `item_list`/`item_get`/`item_delete`/`item_subitem_list` **no estan limitados a esos valores**: cualquier itemtype/subtype se reenvia a GLPI tal cual. GLPI es quien valida si el itemtype existe, si el subtype aplica, y si el perfil activo tiene permiso; un itemtype invalido o sin permiso produce el error que GLPI devuelva (404/400/403), no un rechazo previo del servidor. Si `item_list`/`item_get` devuelven `403`/`ERROR_RIGHT_MISSING`, pase `profile_id` (por id o por nombre, ver mas abajo) con un perfil que tenga esos derechos.
 
 `item_list(itemtype="Document", ...)` / `item_get(itemtype="Document", id=...)` permiten buscar/consultar metadata de documentos (nombre, filename, mime, entidad, fecha), e `item_subitem_list(itemtype="Ticket"|"Change", id=..., subtype="Document_Item")` muestra que documentos ya estan vinculados a un ticket o cambio puntual — sin necesidad de una tool dedicada para listar/buscar documentos.
+
+### Crear o actualizar Ticket/Change (`ticket_save` / `change_save`)
+
+`ticket_add`/`ticket_update` y `change_add`/`change_update` se reemplazaron por una sola herramienta cada uno (primero como `save_tickets`/`save_changes`, luego renombradas a `ticket_save`/`change_save`). El parametro `id` decide el comportamiento: sin `id` se crea un elemento nuevo (`name` obligatorio, igual que antes con `ticket_add`/`change_add`); con `id` se actualiza el existente, usando los mismos nombres de parametro con nombre (`name`, `content`, `status`, `impact`, `priority`, `urgency`, `category_id`, `additional`, `pr_links`) en vez del `fields` generico que exigia `ticket_update`/`change_update` — solo se envian al servidor los campos que se indiquen.
+
+```json
+{"name":"Impresora no imprime","content":"Detalle del problema","priority":"Alta"}
+```
+
+```json
+{"id":123,"status":"Solucionado","additional":{"solutiontypes_id":3}}
+```
+
+**Nota**: al unificar se corrigio una inconsistencia existente — `pr_links` estaba declarado en el schema de `ticket_add`/`ticket_update` pero nunca se aplicaba (`_merge_pr_links` solo se llamaba para `change_add`/`change_update`). `ticket_save` ahora aplica `pr_links` igual que `change_save`.
 
 ### Archivos (`file_upload` / `file_download` / `file_link` / `file_unlink`)
 
@@ -85,9 +93,9 @@ Ademas de las herramientas especificas, hay herramientas de acceso **generico** 
 
 Las cuatro aceptan los mismos `entity_id`/`profile_id` opcionales que el resto de las herramientas.
 
-### Asignar usuarios/grupos (`assistance_item_user_add` / `assistance_item_group_add`)
+### Asignar usuario/grupo (`item_user_add` / `item_group_add`)
 
-`ticket_user_assign`/`change_user_assign` y `ticket_group_assign`/`change_group_assign` se reemplazaron por dos herramientas genericas, porque cada par era identico salvo el campo GLPI (`tickets_id` vs `changes_id`) y el subtype (`Ticket_User`/`Change_User`, `Group_Ticket`/`Change_Group`). Ambas reciben `itemtype` (unicamente `"Ticket"` o `"Change"`, valida contra esos dos valores), `id` y `users`/`groups`, y arman el campo/subtype correcto internamente:
+`ticket_user_assign`/`change_user_assign` y `ticket_group_assign`/`change_group_assign` se reemplazaron por dos herramientas genericas, porque cada par era identico salvo el campo GLPI (`tickets_id` vs `changes_id`) y el subtype (`Ticket_User`/`Change_User`, `Group_Ticket`/`Change_Group`). Ambas reciben `itemtype` (unicamente `"Ticket"` o `"Change"`, valida contra esos dos valores), `id`, y `users`/`groups` respectivamente — **solo un usuario o un grupo por llamada** (un objeto, no una lista): GLPI soporta un `POST` en lote para `Ticket_User`/`Change_User`/`Group_Ticket`/`Change_Group`, pero ambas tools se restringen a proposito para una interfaz mas simple:
 
 ```json
 {"itemtype":"Change","id":2620,"users":{"users_id":18,"type":1,"use_notification":0}}
@@ -97,31 +105,25 @@ Las cuatro aceptan los mismos `entity_id`/`profile_id` opcionales que el resto d
 {"itemtype":"Ticket","id":2079,"groups":{"groups_id":5,"type":1,"use_notification":0}}
 ```
 
-Esto envia a GLPI `POST Change_User`/`POST Group_Ticket` con `{"input":[{"changes_id":2620,"users_id":18,"type":1,"use_notification":0}]}` / `{"input":[{"tickets_id":2079,"groups_id":5,"type":1,"use_notification":0}]}` respectivamente.
+Esto envia a GLPI `POST Change_User`/`POST Group_Ticket` con `{"input":[{"changes_id":2620,"users_id":18,"type":1,"use_notification":0}]}` / `{"input":[{"tickets_id":2079,"groups_id":5,"type":1,"use_notification":0}]}` respectivamente. `type` (el rol: 1 solicitante, 2 asignado, 3 observador) es opcional en ambas — si se omite, GLPI mismo lo asume como `1` (solicitante).
 
-### Agregar comentarios (`assistance_item_followup_add`)
+### Agregar/actualizar comentarios (`item_followup_add`)
 
-`ticket_follow_add`/`change_follow_add` se reemplazaron por `assistance_item_followup_add`. A diferencia de las asignaciones (`tickets_id`/`changes_id`), `ITILFollowup` ya usa un payload itemtype-generico en GLPI (`itemtype`/`items_id`), asi que unificar solo requiere pasar el `itemtype` correcto:
+`ticket_follow_add`/`change_follow_add` (y las posteriores `assistance_item_followup_add`/`assistance_item_followup_update`) se unificaron en una sola herramienta `item_followup_add`, con el mismo patron crear-o-actualizar que `ticket_save`/`change_save`/`item_solution_add`: sin `followup_id` crea un comentario nuevo; con `followup_id` actualiza el existente. A diferencia de las asignaciones (`tickets_id`/`changes_id`), `ITILFollowup` ya usa un payload itemtype-generico en GLPI (`itemtype`/`items_id`), asi que unificar solo requiere pasar el `itemtype` correcto:
 
 ```json
 {"itemtype":"Change","id":2620,"content":"pruebas de ticketssss","is_private":0}
 ```
 
-Esto envia a GLPI `POST ITILFollowup` con `{"input":[{"itemtype":"Change","items_id":2620,"content":"pruebas de ticketssss","is_private":0}]}`.
-
-### Actualizar comentarios (`assistance_item_followup_update`)
-
-Misma forma que `assistance_item_followup_add`, con `followup_id` agregado (el id propio del comentario, distinto de `id`, que sigue siendo el ticket/cambio):
-
 ```json
 {"itemtype":"Change","id":2620,"followup_id":20016,"content":"xxxxx de ticketssss","is_private":0}
 ```
 
-Esto envia a GLPI `PATCH ITILFollowup` con `{"input":[{"id":20016,"itemtype":"Change","items_id":2620,"content":"xxxxx de ticketssss","is_private":0}]}`.
+Esto envia a GLPI `POST`/`PATCH ITILFollowup` segun corresponda; por ejemplo la actualizacion anterior envia `{"input":[{"id":20016,"itemtype":"Change","items_id":2620,"content":"xxxxx de ticketssss","is_private":0}]}`.
 
-### Agregar/actualizar soluciones (`assistance_item_solution_add` / `assistance_item_solution_update`)
+### Agregar/actualizar soluciones (`item_solution_add`)
 
-`ticket_solution_add`/`change_solution_add` se reemplazaron por `assistance_item_solution_add`: igual que ITILFollowup, ITILSolution ya es itemtype-generico en GLPI, asi que unificar solo requiere el `itemtype` correcto. `assistance_item_solution_update` agrega `solution_id` (el id propio de la solucion) sobre la misma forma. Ninguna de las dos recibe `solution_type_id`:
+`ticket_solution_add`/`change_solution_add` (y las posteriores `assistance_item_solution_add`/`assistance_item_solution_update`) se unificaron en una sola herramienta `item_solution_add`, con el mismo patron crear-o-actualizar que `ticket_save`/`change_save`: sin `solution_id` crea una solucion nueva; con `solution_id` actualiza la existente. No recibe `solution_type_id`:
 
 ```json
 {"itemtype":"Change","id":2620,"content":"solucion de prueba"}
@@ -131,17 +133,17 @@ Esto envia a GLPI `PATCH ITILFollowup` con `{"input":[{"id":20016,"itemtype":"Ch
 {"itemtype":"Change","id":2620,"solution_id":555,"content":"solucion actualizada"}
 ```
 
-### Vincular/desvincular Ticket y Change (`assistance_item_ticketchange_link` / `assistance_item_ticketchange_unlink`)
+### Vincular/desvincular Ticket y Change (`item_ticketchange_link` / `item_ticketchange_unlink`)
 
 `ticket_change_link`/`change_ticket_link` y `ticket_change_unlink`/`change_ticket_unlink` se reemplazan por una sola herramienta cada uno: ambos pares eran mecanicamente identicos (mismo `POST`/`DELETE /Change_Ticket`), solo con nombres y orden de parametros distintos — no habia ninguna logica dependiente de "que lado" se llamaba.
 
-`assistance_item_ticketchange_link` recibe `itemtype` (`"Ticket"` o `"Change"`), `id` (el id de ese lado) y `link_id` — aqui **`link_id` es el id del lado complementario** (un `change_id` si `itemtype` es `"Ticket"`, o un `ticket_id` si `itemtype` es `"Change"`):
+`item_ticketchange_link` recibe `itemtype` (`"Ticket"` o `"Change"`), `id` (el id de ese lado) y `link_id` — aqui **`link_id` es el id del lado complementario** (un `change_id` si `itemtype` es `"Ticket"`, o un `ticket_id` si `itemtype` es `"Change"`):
 
 ```json
 {"itemtype":"Ticket","id":47,"link_id":2620}
 ```
 
-`assistance_item_ticketchange_unlink` recibe la misma forma que `assistance_item_ticketchange_link` (`itemtype`, `id`, `link_id` con el mismo significado: el lado complementario), en vez del id de la relacion `Change_Ticket` en si — referenciar ese id opaco directamente es dificil (obliga a consultar `item_subitem_list` antes). La herramienta resuelve internamente cual relacion borrar:
+`item_ticketchange_unlink` recibe la misma forma que `item_ticketchange_link` (`itemtype`, `id`, `link_id` con el mismo significado: el lado complementario), en vez del id de la relacion `Change_Ticket` en si — referenciar ese id opaco directamente es dificil (obliga a consultar `item_subitem_list` antes). La herramienta resuelve internamente cual relacion borrar:
 
 ```json
 {"itemtype":"Ticket","id":47,"link_id":2620,"purge":true}
@@ -160,7 +162,7 @@ Como cada llamada MCP abre y cierra su propia sesion GLPI, el cambio de entidad/
 
 **Importante**: GLPI responde `HTTP 200` con cuerpo `false` (no un error HTTP) cuando la entidad o el perfil indicados no son accesibles para el usuario/token, o no existen. Cualquier herramienta invocada con `entity_id`/`profile_id` detecta este caso y devuelve un error explicito en vez de fallar en silencio; si obtenes ese error, revisa que el `entity_id`/`profile_id` este entre los que devuelve `entityprofile_list`.
 
-**Nota de diseño**: no hay herramientas dedicadas `entity_switch`/`profile_switch` — cada llamada MCP abre y cierra su propia sesion GLPI, asi que "cambiar de entidad/perfil" como operacion aislada no tendria ningun efecto persistente. Cambiar de entidad/perfil solo tiene sentido *junto con* la operacion real que se quiere ejecutar en esa entidad/perfil, por eso `entity_id`/`profile_id` son parametros de las herramientas de negocio (`ticket_list`, `ticket_add`, etc.), no tools independientes.
+**Nota de diseño**: no hay herramientas dedicadas `entity_switch`/`profile_switch` — cada llamada MCP abre y cierra su propia sesion GLPI, asi que "cambiar de entidad/perfil" como operacion aislada no tendria ningun efecto persistente. Cambiar de entidad/perfil solo tiene sentido *junto con* la operacion real que se quiere ejecutar en esa entidad/perfil, por eso `entity_id`/`profile_id` son parametros de las herramientas de negocio (`ticket_list`, `ticket_save`, etc.), no tools independientes.
 
 Las herramientas responden en JSON serializado dentro de `TextContent`. Por ejemplo, `entityprofile_list` devuelve una lista simplificada de perfiles con sus entidades:
 
@@ -264,7 +266,7 @@ La capa GLPI fue separada por dominio y responsabilidad:
 - `src/mcp_glpi/glpi/session/`: lectura de sesion, perfiles (listado y cambio de perfil activo) y entidades (listado y cambio de entidad activa) del usuario logueado.
 - `src/mcp_glpi/glpi/files/`: subida (`file_upload`), descarga (`file_download`) y vinculo/desvinculo (`file_link`/`file_unlink`, itemtype `Document_Item`) de documentos.
 - `src/mcp_glpi/glpi/generic.py`: acceso generico a **cualquier** itemtype/subtype de GLPI (`ITEMTYPE_CATALOG` es una guia de referencia verificada, no una restriccion), detras de `item_list`/`item_get`/`item_subitem_list`/`item_type_list`/`item_subtype_list` (solo lectura) e `item_delete` (la unica mutacion generica).
-- `src/mcp_glpi/glpi/shared.py`: helpers comunes reutilizados por las entidades GLPI, incluyendo `fetch_paginated_items`/`fetch_paginated_subitems` (paginacion, apertura de sesion, cambio de entidad/perfil) y `EntityList.respond()` (dispatch de `output`/`fields`) que comparten `ticket_list`/`change_list`, los listados de seguimientos/soluciones, e `item_list`/`item_subitem_list`.
+- `src/mcp_glpi/glpi/shared.py`: helpers comunes reutilizados por las entidades GLPI, incluyendo `fetch_paginated_items`/`fetch_paginated_subitems` (paginacion, apertura de sesion, cambio de entidad/perfil) y `EntityList.respond()` (dispatch de `output`/`fields`) que comparten `item_list`/`item_subitem_list` y, con `output` fijo en `"dict"` (ya no es un parametro de la tool), `ticket_list`/`change_list`.
 
 ## Recursos Utiles
 - Archivo de configuracion: `examples/claude_desktop_config.json`.

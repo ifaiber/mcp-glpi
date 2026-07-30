@@ -153,37 +153,6 @@ def test_update_ticket_requires_fields(monkeypatch):
         tickets.update_ticket(ticket_id=1, fields={'custom': None})
 
 
-def test_delete_ticket_converts_flags(monkeypatch):
-    captured = {}
-
-    class DummyHandler:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def delete_items(self, table, ids, *, purge, log):
-            captured['table'] = table
-            captured['ids'] = ids
-            captured['purge'] = purge
-            captured['log'] = log
-            return {'deleted': ids}
-
-    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
-
-    result = tickets.delete_ticket('15', purge='1', keep_history='0')
-
-    assert captured['table'] == 'Ticket'
-    assert captured['ids'] == [15]
-    assert captured['purge'] is True
-    assert captured['log'] is False
-    assert result.summary() == 'Deleted ticket 15'
-
-
 def test_create_ticket_switches_active_entity_when_entity_id_given(monkeypatch):
     captured = {}
 
@@ -293,32 +262,6 @@ def test_create_ticket_switches_to_root_entity_when_entity_id_is_zero(monkeypatc
     assert captured['payload']['entities_id'] == 0
 
 
-def test_delete_ticket_switches_active_entity_when_entity_id_given(monkeypatch):
-    captured = {}
-
-    class DummyHandler:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def change_active_entity(self, entity_id):
-            captured['switched_to'] = entity_id
-
-        def delete_items(self, table, ids, *, purge, log):
-            return {'deleted': ids}
-
-    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
-
-    tickets.delete_ticket('15', entity_id=2)
-
-    assert captured['switched_to'] == 2
-
-
 def test_create_ticket_switches_profile_before_entity(monkeypatch):
     calls = []
 
@@ -375,5 +318,134 @@ def test_create_ticket_does_not_switch_profile_by_default(monkeypatch):
     tickets.create_ticket(name='Demo')
 
     assert captured['switch_called'] is False
+
+
+def test_save_ticket_creates_when_no_id_given(monkeypatch):
+    captured = {}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def create_ticket(self, **payload):
+            captured['payload'] = payload
+            return {'id': 99, 'name': payload['name']}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    result = tickets.save_ticket(name='Demo', content='desc', status='Solved')
+
+    assert captured['payload']['name'] == 'Demo'
+    assert captured['payload']['content'] == 'desc'
+    assert captured['payload']['status'] == 5
+    assert result.summary().startswith('Ticket created')
+
+
+def test_save_ticket_requires_name_when_no_id():
+    with pytest.raises(ValueError, match='name is required'):
+        tickets.save_ticket(content='desc')
+
+
+def test_save_ticket_updates_when_id_given(monkeypatch):
+    captured = {}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def update_items(self, table, payloads):
+            captured['table'] = table
+            captured['payloads'] = payloads
+            return {'updated': payloads}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    result = tickets.save_ticket(id=10, status='Assigned', category_id='7')
+
+    assert captured['table'] == 'Ticket'
+    payload = captured['payloads'][0]
+    assert payload['id'] == 10
+    assert payload['status'] == 2
+    assert payload['itilcategories_id'] == 7
+    assert 'name' not in payload
+    assert result.summary() == 'Updated ticket 10'
+
+
+def test_save_ticket_update_does_not_require_name(monkeypatch):
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def update_items(self, table, payloads):
+            return {'updated': payloads}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    # Should not raise even though 'name' is absent -- only required on create.
+    tickets.save_ticket(id=10, content='nuevo contenido')
+
+
+def test_save_ticket_update_merges_additional_fields(monkeypatch):
+    captured = {}
+
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def update_items(self, table, payloads):
+            captured['payloads'] = payloads
+            return {'updated': payloads}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    tickets.save_ticket(id=10, additional_fields={'requesttypes_id': 3})
+
+    payload = captured['payloads'][0]
+    assert payload['id'] == 10
+    assert payload['requesttypes_id'] == 3
+
+
+def test_save_ticket_update_requires_at_least_one_field(monkeypatch):
+    class DummyHandler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def update_items(self, table, payloads):
+            return {'updated': payloads}
+
+    monkeypatch.setattr(tickets, 'RequestHandler', DummyHandler)
+
+    with pytest.raises(ValueError):
+        tickets.save_ticket(id=10)
 
 

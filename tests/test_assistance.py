@@ -20,17 +20,30 @@ class _DummyHandlerBase:
         raise GLPIError("The previous request did not return a range")
 
 
-def test_assign_assistance_users_rejects_unsupported_itemtype():
+def test_assign_assistance_user_rejects_unsupported_itemtype():
     with pytest.raises(ValueError, match="itemtype"):
-        assistance.assign_assistance_users("Computer", 1, {"users_id": 2})
+        assistance.assign_assistance_user("Computer", 1, {"users_id": 2})
 
 
-def test_assign_assistance_users_rejects_blank_itemtype():
+def test_assign_assistance_user_rejects_blank_itemtype():
     with pytest.raises(ValueError, match="itemtype"):
-        assistance.assign_assistance_users("", 1, {"users_id": 2})
+        assistance.assign_assistance_user("", 1, {"users_id": 2})
 
 
-def test_assign_assistance_users_uses_tickets_id_and_ticket_user(monkeypatch):
+def test_assign_assistance_user_rejects_list(monkeypatch):
+    class DummyHandler(_DummyHandlerBase):
+        def add_items(self, item_type, payload):
+            return {"id": 1}
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    with pytest.raises(ValueError, match="lista"):
+        assistance.assign_assistance_user(
+            "Ticket", 2079, [{"users_id": 5}, {"users_id": 6}]
+        )
+
+
+def test_assign_assistance_user_uses_tickets_id_and_ticket_user(monkeypatch):
     captured = {}
 
     class DummyHandler(_DummyHandlerBase):
@@ -41,16 +54,16 @@ def test_assign_assistance_users_uses_tickets_id_and_ticket_user(monkeypatch):
 
     monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
 
-    result = assistance.assign_assistance_users("Ticket", 10, {"users_id": 5})
+    result = assistance.assign_assistance_user("Ticket", 10, {"users_id": 5})
 
     assert captured["item_type"] == "Ticket_User"
     assert captured["payload"] == {"users_id": 5, "tickets_id": 10}
-    assert result.action == "assistance_item_user_add"
+    assert result.action == "item_user_add"
     assert result.entity_id_field == "id"
     assert result.entity_id == 10
 
 
-def test_assign_assistance_users_uses_changes_id_and_change_user(monkeypatch):
+def test_assign_assistance_user_uses_changes_id_and_change_user(monkeypatch):
     captured = {}
 
     class DummyHandler(_DummyHandlerBase):
@@ -62,8 +75,8 @@ def test_assign_assistance_users_uses_changes_id_and_change_user(monkeypatch):
     monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
 
     # Matches the GLPI payload shape the user pointed at: changes_id/users_id/type/use_notification.
-    result = assistance.assign_assistance_users(
-        "Change", 2620, [{"users_id": 18, "type": 1, "use_notification": 0}]
+    result = assistance.assign_assistance_user(
+        "Change", 2620, {"users_id": 18, "type": 1, "use_notification": 0}
     )
 
     assert captured["item_type"] == "Change_User"
@@ -73,7 +86,7 @@ def test_assign_assistance_users_uses_changes_id_and_change_user(monkeypatch):
     assert result.entity_id == 2620
 
 
-def test_assign_assistance_users_switches_profile_before_entity(monkeypatch):
+def test_assign_assistance_user_switches_profile_before_entity(monkeypatch):
     calls = []
 
     class DummyHandler(_DummyHandlerBase):
@@ -88,17 +101,30 @@ def test_assign_assistance_users_switches_profile_before_entity(monkeypatch):
 
     monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
 
-    assistance.assign_assistance_users("Ticket", 10, {"users_id": 5}, entity_id=11, profile_id=24)
+    assistance.assign_assistance_user("Ticket", 10, {"users_id": 5}, entity_id=11, profile_id=24)
 
     assert calls == [("profile", 24), ("entity", 11)]
 
 
-def test_assign_assistance_groups_rejects_unsupported_itemtype():
+def test_assign_assistance_group_rejects_unsupported_itemtype():
     with pytest.raises(ValueError, match="itemtype"):
-        assistance.assign_assistance_groups("Computer", 1, {"groups_id": 2})
+        assistance.assign_assistance_group("Computer", 1, {"groups_id": 2})
 
 
-def test_assign_assistance_groups_uses_tickets_id_and_group_ticket(monkeypatch):
+def test_assign_assistance_group_rejects_list(monkeypatch):
+    class DummyHandler(_DummyHandlerBase):
+        def add_items(self, item_type, payload):
+            return {"id": 1}
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    with pytest.raises(ValueError, match="lista"):
+        assistance.assign_assistance_group(
+            "Ticket", 2079, [{"groups_id": 5}, {"groups_id": 6}]
+        )
+
+
+def test_assign_assistance_group_uses_tickets_id_and_group_ticket(monkeypatch):
     captured = {}
 
     class DummyHandler(_DummyHandlerBase):
@@ -110,20 +136,20 @@ def test_assign_assistance_groups_uses_tickets_id_and_group_ticket(monkeypatch):
     monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
 
     # Matches the GLPI payload shape the user pointed at: tickets_id/groups_id/type/use_notification.
-    result = assistance.assign_assistance_groups(
-        "Ticket", 2079, [{"groups_id": 5, "type": 1, "use_notification": 0}]
+    result = assistance.assign_assistance_group(
+        "Ticket", 2079, {"groups_id": 5, "type": 1, "use_notification": 0}
     )
 
     assert captured["item_type"] == "Group_Ticket"
     assert captured["payload"] == {
         "groups_id": 5, "type": 1, "use_notification": False, "tickets_id": 2079
     }
-    assert result.action == "assistance_item_group_add"
+    assert result.action == "item_group_add"
     assert result.entity_id_field == "id"
     assert result.entity_id == 2079
 
 
-def test_assign_assistance_groups_uses_changes_id_and_change_group(monkeypatch):
+def test_assign_assistance_group_uses_changes_id_and_change_group(monkeypatch):
     captured = {}
 
     class DummyHandler(_DummyHandlerBase):
@@ -134,14 +160,14 @@ def test_assign_assistance_groups_uses_changes_id_and_change_group(monkeypatch):
 
     monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
 
-    result = assistance.assign_assistance_groups("Change", 20, {"groups_id": 7})
+    result = assistance.assign_assistance_group("Change", 20, {"groups_id": 7})
 
     assert captured["item_type"] == "Change_Group"
     assert captured["payload"] == {"groups_id": 7, "changes_id": 20}
     assert result.entity_id == 20
 
 
-def test_assign_assistance_groups_switches_profile_before_entity(monkeypatch):
+def test_assign_assistance_group_switches_profile_before_entity(monkeypatch):
     calls = []
 
     class DummyHandler(_DummyHandlerBase):
@@ -156,7 +182,7 @@ def test_assign_assistance_groups_switches_profile_before_entity(monkeypatch):
 
     monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
 
-    assistance.assign_assistance_groups("Ticket", 10, {"groups_id": 5}, entity_id=11, profile_id=24)
+    assistance.assign_assistance_group("Ticket", 10, {"groups_id": 5}, entity_id=11, profile_id=24)
 
     assert calls == [("profile", 24), ("entity", 11)]
 
@@ -290,6 +316,57 @@ def test_update_assistance_followup_switches_profile_before_entity(monkeypatch):
     assert calls == [("profile", 24), ("entity", 11)]
 
 
+def test_save_assistance_followup_without_followup_id_creates(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_DummyHandlerBase):
+        def add_items(self, item_type, payload):
+            captured["item_type"] = item_type
+            captured["payload"] = payload
+            return {"id": 1}
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    result = assistance.save_assistance_followup("Change", 2620, "hola")
+
+    assert captured["item_type"] == "ITILFollowup"
+    assert captured["payload"] == {
+        "itemtype": "Change",
+        "items_id": 2620,
+        "content": "hola",
+        "is_private": 0,
+    }
+    assert result.action == "assistance_item_followup_add"
+
+
+def test_save_assistance_followup_with_followup_id_updates(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_DummyHandlerBase):
+        def update_items(self, item_type, payload_list):
+            captured["item_type"] = item_type
+            captured["payload_list"] = payload_list
+            return [{"id": 1}]
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    result = assistance.save_assistance_followup(
+        "Change", 2620, "hola actualizada", followup_id=99
+    )
+
+    assert captured["item_type"] == "ITILFollowup"
+    assert captured["payload_list"] == [
+        {
+            "id": 99,
+            "itemtype": "Change",
+            "items_id": 2620,
+            "content": "hola actualizada",
+            "is_private": 0,
+        }
+    ]
+    assert result.action == "assistance_item_followup_update"
+
+
 def test_add_assistance_solution_rejects_unsupported_itemtype():
     with pytest.raises(ValueError, match="itemtype"):
         assistance.add_assistance_solution("Computer", 1, "sol")
@@ -394,6 +471,55 @@ def test_update_assistance_solution_switches_profile_before_entity(monkeypatch):
     assert calls == [("profile", 24), ("entity", 11)]
 
 
+def test_add_item_solution_without_solution_id_creates(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_DummyHandlerBase):
+        def add_items(self, item_type, payload):
+            captured["item_type"] = item_type
+            captured["payload"] = payload
+            return {"id": 1}
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    result = assistance.add_item_solution("Change", 2620, "sol")
+
+    assert captured["item_type"] == "ITILSolution"
+    assert captured["payload"] == {
+        "itemtype": "Change",
+        "items_id": 2620,
+        "content": "sol",
+    }
+    assert result.action == "assistance_item_solution_add"
+
+
+def test_add_item_solution_with_solution_id_updates(monkeypatch):
+    captured = {}
+
+    class DummyHandler(_DummyHandlerBase):
+        def update_items(self, item_type, payload_list):
+            captured["item_type"] = item_type
+            captured["payload_list"] = payload_list
+            return [{"id": 1}]
+
+    monkeypatch.setattr(assistance, "RequestHandler", DummyHandler)
+
+    result = assistance.add_item_solution(
+        "Change", 2620, "sol actualizada", solution_id=555
+    )
+
+    assert captured["item_type"] == "ITILSolution"
+    assert captured["payload_list"] == [
+        {
+            "id": 555,
+            "itemtype": "Change",
+            "items_id": 2620,
+            "content": "sol actualizada",
+        }
+    ]
+    assert result.action == "assistance_item_solution_update"
+
+
 def test_link_ticket_change_from_ticket_side(monkeypatch):
     captured = {}
 
@@ -409,7 +535,7 @@ def test_link_ticket_change_from_ticket_side(monkeypatch):
 
     assert captured["item_type"] == "Change_Ticket"
     assert captured["payload"] == {"tickets_id": 47, "changes_id": 2620}
-    assert result.action == "assistance_item_ticketchange_link"
+    assert result.action == "item_ticketchange_link"
     assert result.entity_id == 47
 
 
@@ -478,7 +604,7 @@ def test_unlink_ticket_change_resolves_relation_id_then_deletes(monkeypatch):
     assert captured["ids"] == [9001]
     assert captured["purge"] is False
     assert captured["log"] is True
-    assert result.action == "assistance_item_ticketchange_unlink"
+    assert result.action == "item_ticketchange_unlink"
     assert result.entity_id == 9001
 
 

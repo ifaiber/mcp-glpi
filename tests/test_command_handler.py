@@ -231,52 +231,6 @@ def test_numeric_entity_and_profile_id_do_not_trigger_name_resolution(monkeypatc
     assert 'resolution_notes' not in payload
 
 
-def test_ticket_delete_requires_ticket_id():
-    response = CommandHandler('ticket_delete', {}).execute()
-    payload = _extract_json(response)
-    assert payload['ok'] is False
-    assert payload['error']['type'] == 'validation_error'
-
-
-def test_ticket_delete_forwards_arguments(monkeypatch):
-    captured = {}
-
-    def fake_delete_ticket(**kwargs):
-        captured.update(kwargs)
-        return DummyResult(summary_text='Deleted ticket 10', payload={'payload': kwargs})
-
-    monkeypatch.setattr(glpi_tickets, 'delete_ticket', fake_delete_ticket)
-
-    response = CommandHandler(
-        'ticket_delete', {'ticket_id': 10, 'purge': True, 'entity_id': 3}
-    ).execute()
-    payload = _extract_json(response)
-
-    assert payload['ok'] is True
-    assert payload['summary'] == 'Deleted ticket 10'
-    assert captured['ticket_id'] == 10
-    assert captured['purge'] is True
-    assert captured['entity_id'] == 3
-
-
-def test_change_delete_forwards_arguments(monkeypatch):
-    captured = {}
-
-    def fake_delete_change(**kwargs):
-        captured.update(kwargs)
-        return DummyResult(summary_text='Deleted change 20', payload={'payload': kwargs})
-
-    monkeypatch.setattr(glpi_changes, 'delete_change', fake_delete_change)
-
-    response = CommandHandler('change_delete', {'change_id': 20}).execute()
-    payload = _extract_json(response)
-
-    assert payload['ok'] is True
-    assert payload['summary'] == 'Deleted change 20'
-    assert captured['change_id'] == 20
-    assert captured['entity_id'] is None
-
-
 def test_list_tickets_with_blank_entity_id_is_treated_as_omitted(monkeypatch):
     captured = {}
 
@@ -293,16 +247,16 @@ def test_list_tickets_with_blank_entity_id_is_treated_as_omitted(monkeypatch):
     assert captured['entity_id'] is None
 
 
-def test_ticket_add_with_blank_entity_id_is_treated_as_omitted(monkeypatch):
+def test_ticket_save_with_blank_entity_id_is_treated_as_omitted(monkeypatch):
     captured = {}
 
-    def fake_create_ticket(**kwargs):
+    def fake_save_ticket(**kwargs):
         captured.update(kwargs)
         return DummyResult(payload={'payload': kwargs, 'response': {'id': 1, 'name': 'Demo'}})
 
-    monkeypatch.setattr(glpi_tickets, 'create_ticket', fake_create_ticket)
+    monkeypatch.setattr(glpi_tickets, 'save_ticket', fake_save_ticket)
 
-    response = CommandHandler('ticket_add', {'name': 'Demo', 'entity_id': '  '}).execute()
+    response = CommandHandler('ticket_save', {'name': 'Demo', 'entity_id': '  '}).execute()
     payload = _extract_json(response)
 
     assert payload['ok'] is True
@@ -323,16 +277,16 @@ def test_ticket_list_forwards_entity_id(monkeypatch):
     assert captured['entity_id'] == 6
 
 
-def test_ticket_add_forwards_entity_id_alias(monkeypatch):
+def test_ticket_save_forwards_entity_id_alias(monkeypatch):
     captured = {}
 
-    def fake_create_ticket(**kwargs):
+    def fake_save_ticket(**kwargs):
         captured.update(kwargs)
         return DummyResult(payload={'payload': kwargs, 'response': {'id': 1, 'name': 'Demo'}})
 
-    monkeypatch.setattr(glpi_tickets, 'create_ticket', fake_create_ticket)
+    monkeypatch.setattr(glpi_tickets, 'save_ticket', fake_save_ticket)
 
-    CommandHandler('ticket_add', {'name': 'Demo', 'entities_id': '8'}).execute()
+    CommandHandler('ticket_save', {'name': 'Demo', 'entities_id': '8'}).execute()
 
     assert captured['entity_id'] == 8
 
@@ -351,16 +305,16 @@ def test_ticket_list_forwards_profile_id(monkeypatch):
     assert captured['profile_id'] == 24
 
 
-def test_ticket_add_forwards_profile_id_alias(monkeypatch):
+def test_ticket_save_forwards_profile_id_alias(monkeypatch):
     captured = {}
 
-    def fake_create_ticket(**kwargs):
+    def fake_save_ticket(**kwargs):
         captured.update(kwargs)
         return DummyResult(payload={'payload': kwargs, 'response': {'id': 1, 'name': 'Demo'}})
 
-    monkeypatch.setattr(glpi_tickets, 'create_ticket', fake_create_ticket)
+    monkeypatch.setattr(glpi_tickets, 'save_ticket', fake_save_ticket)
 
-    CommandHandler('ticket_add', {'name': 'Demo', 'profiles_id': '17'}).execute()
+    CommandHandler('ticket_save', {'name': 'Demo', 'profiles_id': '17'}).execute()
 
     assert captured['profile_id'] == 17
 
@@ -398,7 +352,7 @@ def test_ticket_list_normalises_arguments(monkeypatch):
     assert captured['filters'] == {'status': 'open'}
 
 
-def test_ticket_list_defaults_to_dict_output(monkeypatch):
+def test_ticket_list_never_forwards_output(monkeypatch):
     captured = {}
 
     def fake_all_tickets(**kwargs):
@@ -407,7 +361,10 @@ def test_ticket_list_defaults_to_dict_output(monkeypatch):
 
     monkeypatch.setattr(glpi_tickets, 'all_tickets', fake_all_tickets)
 
-    response = CommandHandler('ticket_list', {}).execute()
+    # 'output' is not a supported ticket_list/change_list argument anymore --
+    # even if a caller sends it, it's simply ignored (never read from
+    # arguments), so all_tickets falls back to its own 'dict' default.
+    response = CommandHandler('ticket_list', {'output': 'table'}).execute()
 
     payload = _extract_json(response)
     assert payload == {
@@ -415,20 +372,20 @@ def test_ticket_list_defaults_to_dict_output(monkeypatch):
         'command': 'ticket_list',
         'data': {'tickets': [{'id': 1}], 'range': None},
     }
-    assert captured['output'] == 'dict'
+    assert 'output' not in captured
 
 
-def test_ticket_add_wraps_result_with_summary(monkeypatch):
+def test_ticket_save_wraps_result_with_summary(monkeypatch):
     captured = {}
 
-    def fake_create_ticket(**kwargs):
+    def fake_save_ticket(**kwargs):
         captured.update(kwargs)
         return DummyResult(payload={'payload': kwargs, 'response': {'id': 42, 'name': 'Demo'}})
 
-    monkeypatch.setattr(glpi_tickets, 'create_ticket', fake_create_ticket)
+    monkeypatch.setattr(glpi_tickets, 'save_ticket', fake_save_ticket)
 
     response = CommandHandler(
-        'ticket_add',
+        'ticket_save',
         {
             'name': 'Demo',
             'content': 'desc',
@@ -438,40 +395,90 @@ def test_ticket_add_wraps_result_with_summary(monkeypatch):
 
     payload = _extract_json(response)
     assert payload['ok'] is True
-    assert payload['command'] == 'ticket_add'
+    assert payload['command'] == 'ticket_save'
     assert payload['summary'] == 'Ticket created (id=99): Demo'
     assert payload['data']['payload']['additional_fields']['foo'] == 'bar'
     assert captured['name'] == 'Demo'
     assert captured['content'] == 'desc'
+    assert captured['id'] is None
 
 
-def test_ticket_add_value_error_is_reported(monkeypatch):
-    def failing_create_ticket(**_kwargs):
+def test_ticket_save_value_error_is_reported(monkeypatch):
+    def failing_save_ticket(**_kwargs):
         raise ValueError('boom')
 
-    monkeypatch.setattr(glpi_tickets, 'create_ticket', failing_create_ticket)
+    monkeypatch.setattr(glpi_tickets, 'save_ticket', failing_save_ticket)
 
-    response = CommandHandler('ticket_add', {'name': 'Demo'}).execute()
+    response = CommandHandler('ticket_save', {'name': 'Demo'}).execute()
     payload = _extract_json(response)
     assert payload['ok'] is False
     assert payload['error']['type'] == 'validation_error'
     assert payload['error']['message'] == 'Invalid argument: boom'
 
 
-def test_change_add_merges_pr_links(monkeypatch):
+def test_ticket_save_requires_name_when_no_id():
+    response = CommandHandler('ticket_save', {}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
+
+
+def test_ticket_save_forwards_id_for_update(monkeypatch):
     captured = {}
 
-    def fake_create_change(**kwargs):
+    def fake_save_ticket(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(summary_text='Updated ticket 10', payload={'payload': kwargs})
+
+    monkeypatch.setattr(glpi_tickets, 'save_ticket', fake_save_ticket)
+
+    response = CommandHandler('ticket_save', {'id': 10, 'status': 'Assigned'}).execute()
+    payload = _extract_json(response)
+
+    assert payload['ok'] is True
+    assert captured['id'] == 10
+    assert captured['status'] == 'Assigned'
+
+
+def test_ticket_save_merges_pr_links(monkeypatch):
+    captured = {}
+
+    def fake_save_ticket(**kwargs):
+        captured.update(kwargs)
+        return DummyResult(
+            summary_text='Ticket created (id=99): Demo',
+            payload={'payload': kwargs, 'response': {'id': 99, 'name': 'Demo'}},
+        )
+
+    monkeypatch.setattr(glpi_tickets, 'save_ticket', fake_save_ticket)
+
+    response = CommandHandler(
+        'ticket_save',
+        {
+            'name': 'Demo ticket',
+            'pr_links': ['https://example.com/pr/1'],
+        },
+    ).execute()
+
+    payload = _extract_json(response)
+    assert payload['ok'] is True
+    assert captured['additional_fields']['controlistcontent'] == '<p>https://example.com/pr/1</p>'
+
+
+def test_change_save_merges_pr_links_on_create(monkeypatch):
+    captured = {}
+
+    def fake_save_change(**kwargs):
         captured.update(kwargs)
         return DummyResult(
             summary_text='Change created (id=77): Demo',
             payload={'payload': kwargs, 'response': {'id': 77, 'name': 'Demo'}},
         )
 
-    monkeypatch.setattr(glpi_changes, 'create_change', fake_create_change)
+    monkeypatch.setattr(glpi_changes, 'save_change', fake_save_change)
 
     response = CommandHandler(
-        'change_add',
+        'change_save',
         {
             'name': 'Demo change',
             'pr_links': [
@@ -491,23 +498,24 @@ def test_change_add_merges_pr_links(monkeypatch):
     assert additional_fields['controlistcontent'] == (
         '<p>https://example.com/pr/1</p><p>https://example.com/pr/2</p>'
     )
+    assert captured['id'] is None
 
 
-def test_change_update_merges_pr_links(monkeypatch):
+def test_change_save_merges_pr_links_on_update(monkeypatch):
     captured = {}
 
-    def fake_update_change(**kwargs):
+    def fake_save_change(**kwargs):
         captured.update(kwargs)
         return DummyResult(summary_text='Change updated', payload={'payload': kwargs})
 
-    monkeypatch.setattr(glpi_changes, 'update_change', fake_update_change)
+    monkeypatch.setattr(glpi_changes, 'save_change', fake_save_change)
 
-    original_fields = {'status': 3, 'controlistcontent': '<p>existing</p>'}
     response = CommandHandler(
-        'change_update',
+        'change_save',
         {
-            'change_id': 55,
-            'fields': original_fields,
+            'id': 55,
+            'status': 3,
+            'additional': {'controlistcontent': '<p>existing</p>'},
             'pr_links': ['https://example.com/pr/3'],
         },
     ).execute()
@@ -515,11 +523,18 @@ def test_change_update_merges_pr_links(monkeypatch):
     payload = _extract_json(response)
     assert payload['ok'] is True
     assert payload['summary'] == 'Change updated'
-    assert captured['change_id'] == 55
-    merged_fields = captured['fields']
-    assert merged_fields is not original_fields
-    assert merged_fields['status'] == 3
-    assert merged_fields['controlistcontent'] == '<p>existing</p><p>https://example.com/pr/3</p>'
+    assert captured['id'] == 55
+    assert captured['status'] == 3
+    assert captured['additional_fields']['controlistcontent'] == (
+        '<p>existing</p><p>https://example.com/pr/3</p>'
+    )
+
+
+def test_change_save_requires_name_when_no_id():
+    response = CommandHandler('change_save', {}).execute()
+    payload = _extract_json(response)
+    assert payload['ok'] is False
+    assert payload['error']['type'] == 'validation_error'
 
 
 def test_item_type_list_uses_generic_module(monkeypatch):
@@ -835,27 +850,27 @@ def test_file_unlink_forwards_arguments(monkeypatch):
     assert captured['purge'] is True
 
 
-def test_assistance_item_user_add_requires_itemtype_and_id():
-    response = CommandHandler('assistance_item_user_add', {'users': {'users_id': 5}}).execute()
+def test_item_user_add_requires_itemtype_and_id():
+    response = CommandHandler('item_user_add', {'users': {'users_id': 5}}).execute()
     payload = _extract_json(response)
     assert payload['ok'] is False
     assert payload['error']['type'] == 'validation_error'
 
 
-def test_assistance_item_user_add_forwards_arguments(monkeypatch):
+def test_item_user_add_forwards_arguments(monkeypatch):
     captured = {}
 
-    def fake_assign_assistance_users(**kwargs):
+    def fake_assign_assistance_user(**kwargs):
         captured.update(kwargs)
         return DummyResult(
-            summary_text='Assigned 1 user(s) to Change 2620',
+            summary_text='Assigned user to Change 2620',
             payload={'id': 2620, 'response': {}},
         )
 
-    monkeypatch.setattr(glpi_assistance, 'assign_assistance_users', fake_assign_assistance_users)
+    monkeypatch.setattr(glpi_assistance, 'assign_assistance_user', fake_assign_assistance_user)
 
     response = CommandHandler(
-        'assistance_item_user_add',
+        'item_user_add',
         {
             'itemtype': 'Change',
             'id': 2620,
@@ -872,27 +887,27 @@ def test_assistance_item_user_add_forwards_arguments(monkeypatch):
     assert captured['entity_id'] == 6
 
 
-def test_assistance_item_group_add_requires_itemtype_and_id():
-    response = CommandHandler('assistance_item_group_add', {'groups': {'groups_id': 5}}).execute()
+def test_item_group_add_requires_itemtype_and_id():
+    response = CommandHandler('item_group_add', {'groups': {'groups_id': 5}}).execute()
     payload = _extract_json(response)
     assert payload['ok'] is False
     assert payload['error']['type'] == 'validation_error'
 
 
-def test_assistance_item_group_add_forwards_arguments(monkeypatch):
+def test_item_group_add_forwards_arguments(monkeypatch):
     captured = {}
 
-    def fake_assign_assistance_groups(**kwargs):
+    def fake_assign_assistance_group(**kwargs):
         captured.update(kwargs)
         return DummyResult(
-            summary_text='Assigned 1 group(s) to Ticket 2079',
+            summary_text='Assigned group to Ticket 2079',
             payload={'id': 2079, 'response': {}},
         )
 
-    monkeypatch.setattr(glpi_assistance, 'assign_assistance_groups', fake_assign_assistance_groups)
+    monkeypatch.setattr(glpi_assistance, 'assign_assistance_group', fake_assign_assistance_group)
 
     response = CommandHandler(
-        'assistance_item_group_add',
+        'item_group_add',
         {
             'itemtype': 'Ticket',
             'id': 2079,
@@ -909,27 +924,27 @@ def test_assistance_item_group_add_forwards_arguments(monkeypatch):
     assert captured['entity_id'] == 6
 
 
-def test_assistance_item_followup_add_requires_itemtype_and_id():
-    response = CommandHandler('assistance_item_followup_add', {'content': 'hola'}).execute()
+def test_item_followup_add_requires_itemtype_and_id():
+    response = CommandHandler('item_followup_add', {'content': 'hola'}).execute()
     payload = _extract_json(response)
     assert payload['ok'] is False
     assert payload['error']['type'] == 'validation_error'
 
 
-def test_assistance_item_followup_add_forwards_arguments(monkeypatch):
+def test_item_followup_add_forwards_arguments_without_followup_id(monkeypatch):
     captured = {}
 
-    def fake_add_assistance_followup(**kwargs):
+    def fake_save_assistance_followup(**kwargs):
         captured.update(kwargs)
         return DummyResult(
             summary_text='Added follow-up to Change 2620',
             payload={'id': 2620, 'response': {}},
         )
 
-    monkeypatch.setattr(glpi_assistance, 'add_assistance_followup', fake_add_assistance_followup)
+    monkeypatch.setattr(glpi_assistance, 'save_assistance_followup', fake_save_assistance_followup)
 
     response = CommandHandler(
-        'assistance_item_followup_add',
+        'item_followup_add',
         {
             'itemtype': 'Change',
             'id': 2620,
@@ -944,31 +959,25 @@ def test_assistance_item_followup_add_forwards_arguments(monkeypatch):
     assert captured['itemtype'] == 'Change'
     assert captured['item_id'] == 2620
     assert captured['content'] == 'pruebas de ticketssss'
+    assert captured['followup_id'] is None
     assert captured['is_private'] is False
     assert captured['entity_id'] == 6
 
 
-def test_assistance_item_followup_update_requires_itemtype_id_and_followup_id():
-    response = CommandHandler('assistance_item_followup_update', {'content': 'hola'}).execute()
-    payload = _extract_json(response)
-    assert payload['ok'] is False
-    assert payload['error']['type'] == 'validation_error'
-
-
-def test_assistance_item_followup_update_forwards_arguments(monkeypatch):
+def test_item_followup_add_forwards_followup_id_for_update(monkeypatch):
     captured = {}
 
-    def fake_update_assistance_followup(**kwargs):
+    def fake_save_assistance_followup(**kwargs):
         captured.update(kwargs)
         return DummyResult(
             summary_text='Updated follow-up 20016 on Change 2620',
             payload={'id': 2620, 'response': {}},
         )
 
-    monkeypatch.setattr(glpi_assistance, 'update_assistance_followup', fake_update_assistance_followup)
+    monkeypatch.setattr(glpi_assistance, 'save_assistance_followup', fake_save_assistance_followup)
 
     response = CommandHandler(
-        'assistance_item_followup_update',
+        'item_followup_add',
         {
             'itemtype': 'Change',
             'id': 2620,
@@ -989,27 +998,27 @@ def test_assistance_item_followup_update_forwards_arguments(monkeypatch):
     assert captured['entity_id'] == 6
 
 
-def test_assistance_item_solution_add_requires_itemtype_and_id():
-    response = CommandHandler('assistance_item_solution_add', {'content': 'sol'}).execute()
+def test_item_solution_add_requires_itemtype_and_id():
+    response = CommandHandler('item_solution_add', {'content': 'sol'}).execute()
     payload = _extract_json(response)
     assert payload['ok'] is False
     assert payload['error']['type'] == 'validation_error'
 
 
-def test_assistance_item_solution_add_forwards_arguments(monkeypatch):
+def test_item_solution_add_forwards_arguments_without_solution_id(monkeypatch):
     captured = {}
 
-    def fake_add_assistance_solution(**kwargs):
+    def fake_add_item_solution(**kwargs):
         captured.update(kwargs)
         return DummyResult(
             summary_text='Added solution to Change 2620',
             payload={'id': 2620, 'response': {}},
         )
 
-    monkeypatch.setattr(glpi_assistance, 'add_assistance_solution', fake_add_assistance_solution)
+    monkeypatch.setattr(glpi_assistance, 'add_item_solution', fake_add_item_solution)
 
     response = CommandHandler(
-        'assistance_item_solution_add',
+        'item_solution_add',
         {'itemtype': 'Change', 'id': 2620, 'content': 'sol'},
     ).execute()
     payload = _extract_json(response)
@@ -1018,30 +1027,24 @@ def test_assistance_item_solution_add_forwards_arguments(monkeypatch):
     assert captured['itemtype'] == 'Change'
     assert captured['item_id'] == 2620
     assert captured['content'] == 'sol'
+    assert captured['solution_id'] is None
     assert 'solution_type_id' not in captured
 
 
-def test_assistance_item_solution_update_requires_itemtype_id_and_solution_id():
-    response = CommandHandler('assistance_item_solution_update', {'content': 'sol'}).execute()
-    payload = _extract_json(response)
-    assert payload['ok'] is False
-    assert payload['error']['type'] == 'validation_error'
-
-
-def test_assistance_item_solution_update_forwards_arguments(monkeypatch):
+def test_item_solution_add_forwards_solution_id_for_update(monkeypatch):
     captured = {}
 
-    def fake_update_assistance_solution(**kwargs):
+    def fake_add_item_solution(**kwargs):
         captured.update(kwargs)
         return DummyResult(
             summary_text='Updated solution 555 on Change 2620',
             payload={'id': 2620, 'response': {}},
         )
 
-    monkeypatch.setattr(glpi_assistance, 'update_assistance_solution', fake_update_assistance_solution)
+    monkeypatch.setattr(glpi_assistance, 'add_item_solution', fake_add_item_solution)
 
     response = CommandHandler(
-        'assistance_item_solution_update',
+        'item_solution_add',
         {'itemtype': 'Change', 'id': 2620, 'solution_id': 555, 'content': 'sol actualizada'},
     ).execute()
     payload = _extract_json(response)
@@ -1053,14 +1056,14 @@ def test_assistance_item_solution_update_forwards_arguments(monkeypatch):
     assert captured['content'] == 'sol actualizada'
 
 
-def test_assistance_item_ticketchange_link_requires_itemtype_id_and_link_id():
-    response = CommandHandler('assistance_item_ticketchange_link', {}).execute()
+def test_item_ticketchange_link_requires_itemtype_id_and_link_id():
+    response = CommandHandler('item_ticketchange_link', {}).execute()
     payload = _extract_json(response)
     assert payload['ok'] is False
     assert payload['error']['type'] == 'validation_error'
 
 
-def test_assistance_item_ticketchange_link_forwards_arguments(monkeypatch):
+def test_item_ticketchange_link_forwards_arguments(monkeypatch):
     captured = {}
 
     def fake_link_ticket_change(**kwargs):
@@ -1073,7 +1076,7 @@ def test_assistance_item_ticketchange_link_forwards_arguments(monkeypatch):
     monkeypatch.setattr(glpi_assistance, 'link_ticket_change', fake_link_ticket_change)
 
     response = CommandHandler(
-        'assistance_item_ticketchange_link',
+        'item_ticketchange_link',
         {'itemtype': 'Ticket', 'id': 47, 'link_id': 2620},
     ).execute()
     payload = _extract_json(response)
@@ -1084,14 +1087,14 @@ def test_assistance_item_ticketchange_link_forwards_arguments(monkeypatch):
     assert captured['link_id'] == 2620
 
 
-def test_assistance_item_ticketchange_unlink_requires_link_id():
-    response = CommandHandler('assistance_item_ticketchange_unlink', {}).execute()
+def test_item_ticketchange_unlink_requires_link_id():
+    response = CommandHandler('item_ticketchange_unlink', {}).execute()
     payload = _extract_json(response)
     assert payload['ok'] is False
     assert payload['error']['type'] == 'validation_error'
 
 
-def test_assistance_item_ticketchange_unlink_forwards_arguments(monkeypatch):
+def test_item_ticketchange_unlink_forwards_arguments(monkeypatch):
     captured = {}
 
     def fake_unlink_ticket_change(**kwargs):
@@ -1104,7 +1107,7 @@ def test_assistance_item_ticketchange_unlink_forwards_arguments(monkeypatch):
     monkeypatch.setattr(glpi_assistance, 'unlink_ticket_change', fake_unlink_ticket_change)
 
     response = CommandHandler(
-        'assistance_item_ticketchange_unlink',
+        'item_ticketchange_unlink',
         {'itemtype': 'Ticket', 'id': 47, 'link_id': 2623, 'purge': True},
     ).execute()
     payload = _extract_json(response)

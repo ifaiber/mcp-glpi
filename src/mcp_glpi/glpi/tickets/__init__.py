@@ -14,8 +14,8 @@ from .common import (
     _normalize_enum_value,
 )
 from .create import create_ticket
-from .delete import delete_ticket
 from .read import all_tickets, fetch_tickets, list_tickets_as_table
+from .save import save_ticket
 from .update import update_ticket
 
 __all__ = [
@@ -31,8 +31,8 @@ __all__ = [
     "_normalize_enum_value",
     "all_tickets",
     "create_ticket",
-    "delete_ticket",
     "fetch_tickets",
     "list_tickets_as_table",
+    "save_ticket",
     "update_ticket",
 ]
