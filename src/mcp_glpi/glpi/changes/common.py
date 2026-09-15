@@ -14,12 +14,19 @@ logger = logging.getLogger(__name__)
 
 STATUS_LABELS = {
     1: "New",
-    2: "Assessment",
-    3: "Approval",
-    4: "Planning",
-    5: "Implementation",
-    6: "Review",
-    7: "Closed",
+    2: "Assigned",
+    3: "Planned",
+    4: "Pending",
+    5: "Applied",
+    6: "Closed",
+    7: "Accepted",
+    8: "Review",
+    9: "Evaluation",
+    10: "Approval",
+    11: "Testing",
+    12: "Qualification",
+    13: "Refused",
+    14: "Cancelled",
 }
 
 IMPACT_LABELS = {
